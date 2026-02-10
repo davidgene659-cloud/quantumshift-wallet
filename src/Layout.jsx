@@ -11,7 +11,7 @@ import {
   LayoutDashboard,
   Grid3x3,
   Gamepad2,
-  Megaphone
+  TrendingUp
 } from 'lucide-react';
 
 const navItems = [
@@ -23,7 +23,7 @@ const navItems = [
   { icon: Gamepad2, label: 'Casinos', page: 'Casinos' },
   { icon: Spade, label: 'Poker', page: 'Poker' },
   { icon: Landmark, label: 'Banking', page: 'Banking' },
-  { icon: Megaphone, label: 'Analytics', page: 'Analytics' },
+  { icon: TrendingUp, label: 'Analytics', page: 'Analytics' },
 ];
 
 export default function Layout({ children }) {

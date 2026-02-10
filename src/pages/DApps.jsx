@@ -6,6 +6,9 @@ import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
 import DIDManager from '@/components/identity/DIDManager';
 import AIChatbot from '@/components/chat/AIChatbot';
+import DeFiInsurance from '@/components/dapps/DeFiInsurance';
+import PredictionMarkets from '@/components/dapps/PredictionMarkets';
+import CrossChainBridges from '@/components/dapps/CrossChainBridges';
 
 const dapps = [
   { name: 'Uniswap', category: 'DEX', icon: '🦄', description: 'Leading decentralized exchange with V3 concentrated liquidity', url: 'https://app.uniswap.org', color: 'from-pink-500 to-rose-500', tvl: '$4.2B', features: ['Swap', 'Liquidity', 'V3 Pools'] },
@@ -20,7 +23,7 @@ const dapps = [
   { name: 'Convex', category: 'Yield', icon: '🎯', description: 'Boost Curve yields with CVX rewards', url: 'https://convexfinance.com', color: 'from-cyan-500 to-blue-500', tvl: '$2.1B', features: ['Stake CRV', 'Boost APR', 'Rewards'] },
 ];
 
-const categories = ['All', 'DEX', 'Lending', 'Staking', 'Yield', 'Stablecoin', 'Aggregator', 'Derivatives'];
+const categories = ['All', 'DEX', 'Lending', 'Staking', 'Yield', 'Insurance', 'Prediction', 'Bridges', 'Stablecoin', 'Aggregator'];
 
 export default function DApps() {
   const [activeCategory, setActiveCategory] = useState('All');
@@ -104,7 +107,39 @@ export default function DApps() {
           ))}
         </motion.div>
 
+        {/* Emerging DeFi Sections */}
+        {activeCategory === 'Insurance' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <DeFiInsurance />
+          </motion.div>
+        )}
+
+        {activeCategory === 'Prediction' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <PredictionMarkets />
+          </motion.div>
+        )}
+
+        {activeCategory === 'Bridges' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <CrossChainBridges />
+          </motion.div>
+        )}
+
         {/* DApps Grid */}
+        {!['Insurance', 'Prediction', 'Bridges'].includes(activeCategory) && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -157,6 +192,7 @@ export default function DApps() {
             </motion.a>
           ))}
         </motion.div>
+        )}
 
         {/* Info Banner */}
         <motion.div
