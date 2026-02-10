@@ -55,6 +55,9 @@ import Poker from './pages/Poker';
 import Banking from './pages/Banking';
 import Send from './pages/Send';
 import Receive from './pages/Receive';
+import DApps from './pages/DApps';
+import Casinos from './pages/Casinos';
+import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
@@ -66,9 +69,12 @@ export const PAGES = {
     "Banking": Banking,
     "Send": Send,
     "Receive": Receive,
+    "DApps": DApps,
+    "Casinos": Casinos,
 }
 
 export const pagesConfig = {
     mainPage: "Portfolio",
     Pages: PAGES,
+    Layout: __Layout,
 };

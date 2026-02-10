@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ArrowUpRight, ArrowDownLeft, RefreshCw, Landmark, Gamepad2, Bot, Cpu } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, RefreshCw, Landmark, Gamepad2, Bot, Cpu, Grid3x3 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
@@ -8,15 +8,17 @@ const actions = [
   { icon: ArrowUpRight, label: 'Send', color: 'from-blue-500 to-cyan-500', page: 'Send' },
   { icon: ArrowDownLeft, label: 'Receive', color: 'from-green-500 to-emerald-500', page: 'Receive' },
   { icon: RefreshCw, label: 'Swap', color: 'from-purple-500 to-pink-500', page: 'Swap' },
-  { icon: Landmark, label: 'Banking', color: 'from-amber-500 to-orange-500', page: 'Banking' },
+  { icon: Grid3x3, label: 'DApps', color: 'from-violet-500 to-purple-500', page: 'DApps' },
+  { icon: Gamepad2, label: 'Casinos', color: 'from-pink-500 to-rose-500', page: 'Casinos' },
   { icon: Bot, label: 'Bots', color: 'from-indigo-500 to-violet-500', page: 'TradingBots' },
   { icon: Cpu, label: 'Mining', color: 'from-rose-500 to-red-500', page: 'CloudMining' },
   { icon: Gamepad2, label: 'Poker', color: 'from-teal-500 to-cyan-500', page: 'Poker' },
+  { icon: Landmark, label: 'Banking', color: 'from-amber-500 to-orange-500', page: 'Banking' },
 ];
 
 export default function QuickActions() {
   return (
-    <div className="grid grid-cols-4 md:grid-cols-7 gap-3">
+    <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-3">
       {actions.map((action, index) => (
         <Link key={action.label} to={createPageUrl(action.page)}>
           <motion.div

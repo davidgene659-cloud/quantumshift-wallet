@@ -8,7 +8,9 @@ import {
   Cpu, 
   Spade, 
   Landmark,
-  LayoutDashboard 
+  LayoutDashboard,
+  Grid3x3,
+  Gamepad2
 } from 'lucide-react';
 
 const navItems = [
@@ -16,6 +18,8 @@ const navItems = [
   { icon: ArrowLeftRight, label: 'Swap', page: 'Swap' },
   { icon: Bot, label: 'Bots', page: 'TradingBots' },
   { icon: Cpu, label: 'Mining', page: 'CloudMining' },
+  { icon: Grid3x3, label: 'DApps', page: 'DApps' },
+  { icon: Gamepad2, label: 'Casinos', page: 'Casinos' },
   { icon: Spade, label: 'Poker', page: 'Poker' },
   { icon: Landmark, label: 'Banking', page: 'Banking' },
 ];

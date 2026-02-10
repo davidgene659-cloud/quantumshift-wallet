@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import MinerCard from '@/components/mining/MinerCard';
+import MiningAIAssistant from '@/components/mining/MiningAIAssistant';
 import AIChatbot from '@/components/chat/AIChatbot';
 
 const coins = [
@@ -118,6 +119,22 @@ export default function CloudMining() {
             </div>
           ))}
         </motion.div>
+
+        {/* AI Assistant */}
+        {miners.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12 }}
+          >
+            <MiningAIAssistant 
+              miners={miners}
+              onApplyRecommendation={(rec) => {
+                console.log('Applying AI recommendation:', rec);
+              }}
+            />
+          </motion.div>
+        )}
 
         {/* Active Hashrate Banner */}
         <motion.div

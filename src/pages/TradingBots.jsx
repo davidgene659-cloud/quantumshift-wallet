@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import BotCard from '@/components/bots/BotCard';
+import TradingAIOptimizer from '@/components/bots/TradingAIOptimizer';
 import AIChatbot from '@/components/chat/AIChatbot';
 
 const botTypes = [
@@ -86,6 +87,14 @@ export default function TradingBots() {
             </div>
           </div>
           <div className="flex gap-3">
+            {bots.length > 0 && (
+              <TradingAIOptimizer
+                bots={bots}
+                onOptimize={(analysis) => {
+                  console.log('Applying AI optimization:', analysis);
+                }}
+              />
+            )}
             <Button
               onClick={() => setShowTierDialog(true)}
               variant="outline"

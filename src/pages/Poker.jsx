@@ -11,6 +11,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PokerTable from '@/components/poker/PokerTable';
 import AIChatbot from '@/components/chat/AIChatbot';
+import { useEffect } from 'react';
 
 const buyInOptions = [10, 25, 50, 100, 250, 500];
 
@@ -44,6 +45,41 @@ export default function Poker() {
       house_fee_collected: 0,
     });
   };
+
+  const updateGameMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.PokerGame.update(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pokerGames'] }),
+  });
+
+  // Auto-fill tables with AI players
+  useEffect(() => {
+    games.forEach(game => {
+      if (game.status === 'waiting' && game.current_players.length < 5) {
+        const aiPlayersNeeded = Math.min(3, 9 - game.current_players.length);
+        const aiNames = ['CryptoBot', 'PokerAI', 'ChipMaster', 'CardShark', 'BluffBot', 'AllinAI'];
+        const newPlayers = [...game.current_players];
+        
+        for (let i = 0; i < aiPlayersNeeded; i++) {
+          if (newPlayers.length < 9) {
+            newPlayers.push({
+              user_id: `ai_${Math.random().toString(36).substr(2, 9)}`,
+              username: `${aiNames[i % aiNames.length]}${Math.floor(Math.random() * 999)}`,
+              chips: game.buy_in * 100,
+              seat: newPlayers.length + 1,
+              status: 'active'
+            });
+          }
+        }
+        
+        if (newPlayers.length !== game.current_players.length) {
+          updateGameMutation.mutate({
+            id: game.id,
+            data: { current_players: newPlayers }
+          });
+        }
+      }
+    });
+  }, [games]);
 
   const handleJoinTable = (game) => {
     console.log('Joining table:', game.id);
