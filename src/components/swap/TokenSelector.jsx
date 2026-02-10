@@ -76,9 +76,9 @@ export default function TokenSelector({ selected, onSelect, excludeToken }) {
               placeholder="Search by name or symbol"
               className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/30"
             />
-          </div>
+            </div>
 
-          <div className="space-y-2 max-h-80 overflow-y-auto">
+            <div className="space-y-2 max-h-80 overflow-y-auto">
             {filteredTokens.map((token) => (
               <motion.button
                 key={token.symbol}
@@ -102,9 +102,10 @@ export default function TokenSelector({ selected, onSelect, excludeToken }) {
                 <p className="text-white/70">${token.price.toLocaleString()}</p>
               </motion.button>
             ))}
-          </div>
-        </ContentComponent>
-      </DialogComponent>
+            </div>
+            </div>
+            </ContentComponent>
+            </DialogComponent>
     </>
   );
 }
