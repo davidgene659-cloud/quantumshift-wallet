@@ -9,7 +9,9 @@ import PortfolioChart from '@/components/wallet/PortfolioChart';
 import QuickActions from '@/components/wallet/QuickActions';
 import TokenCard from '@/components/wallet/TokenCard';
 import PullToRefresh from '@/components/mobile/PullToRefresh';
+import PrivateKeyImport from '@/components/wallet/PrivateKeyImport';
 import AIChatbot from '@/components/chat/AIChatbot';
+import { Download } from 'lucide-react';
 
 const mockTokens = [
   { symbol: 'BTC', balance: 0.5432, price: 43250, change24h: 2.34 },
@@ -22,6 +24,7 @@ const mockTokens = [
 
 export default function Portfolio() {
   const [showBalance, setShowBalance] = useState(true);
+  const [showImport, setShowImport] = useState(false);
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -68,12 +71,19 @@ export default function Portfolio() {
               <Bell className="w-5 h-5 text-white/70" />
               <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
             </button>
+            <button 
+              onClick={() => setShowImport(true)}
+              className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all" 
+              style={{ minWidth: '44px', minHeight: '44px' }}
+            >
+              <Download className="w-5 h-5 text-white/70" />
+            </button>
             <Link to={createPageUrl('Settings')}>
               <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all" style={{ minWidth: '44px', minHeight: '44px' }}>
                 <SettingsIcon className="w-5 h-5 text-white/70" />
               </button>
             </Link>
-          </div>
+            </div>
         </motion.div>
 
         {/* Portfolio Chart */}
@@ -125,6 +135,14 @@ export default function Portfolio() {
           </div>
         </motion.div>
       </div>
+
+      <PrivateKeyImport
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onImport={(wallets) => {
+          console.log('Imported wallets:', wallets);
+        }}
+      />
 
       <AIChatbot />
       </PullToRefresh>

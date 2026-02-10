@@ -99,6 +99,39 @@ Provide a detailed marketing strategy, partnership recommendations, or ad campai
   const totalClicks = partnerships.reduce((acc, p) => acc + (p.clicks || 0), 0);
   const totalImpressions = partnerships.reduce((acc, p) => acc + (p.impressions || 0), 0);
 
+  const generateReport = async () => {
+    setIsGenerating(true);
+    try {
+      const partnerData = partnerships.map(p => 
+        `${p.partner_name} (${p.partner_type}): $${p.budget} budget, ${p.clicks} clicks, $${p.revenue_generated} revenue, ${p.status}`
+      ).join('; ');
+
+      const report = await base44.integrations.Core.InvokeLLM({
+        prompt: `Generate a comprehensive marketing performance report for a crypto wallet platform.
+
+Partnership Data: ${partnerData}
+
+Total Revenue: $${totalRevenue}
+Total Clicks: ${totalClicks}
+Total Impressions: ${totalImpressions}
+
+Provide:
+1. Executive Summary (2-3 sentences)
+2. Top Performing Partners (list top 3)
+3. Recommendations for improvement
+4. Suggested new partnership opportunities (casinos, exchanges, DeFi protocols)
+5. Demographic targeting suggestions based on crypto wallet users`,
+      });
+
+      setAiResponse(`MARKETING PERFORMANCE REPORT\n\n${report}`);
+      setShowAIAgent(true);
+    } catch (error) {
+      console.error('Report generation failed:', error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-4 md:p-6">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -120,6 +153,15 @@ Provide a detailed marketing strategy, partnership recommendations, or ad campai
             </div>
           </div>
           <div className="flex gap-3">
+            <Button
+              onClick={generateReport}
+              disabled={isGenerating}
+              variant="outline"
+              className="border-blue-500/50 text-blue-400 hover:bg-blue-500/20"
+            >
+              {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <TrendingUp className="w-4 h-4 mr-2" />}
+              Report
+            </Button>
             <Button
               onClick={() => setShowAIAgent(true)}
               className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
@@ -158,6 +200,29 @@ Provide a detailed marketing strategy, partnership recommendations, or ad campai
               <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
             </div>
           ))}
+        </motion.div>
+
+        {/* Ad Space Inventory */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-xl border border-white/10 rounded-2xl p-5"
+        >
+          <h3 className="text-white font-bold mb-4">Available Ad Space</h3>
+          <div className="grid md:grid-cols-3 gap-4">
+            {['Banner (Portfolio)', 'Sidebar (Swap)', 'Modal (Post-Trade)'].map((space, i) => (
+              <div key={i} className="bg-white/5 rounded-xl p-4 border border-white/10">
+                <p className="text-white font-medium mb-2">{space}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-emerald-400 text-sm">Available</span>
+                  <Button size="sm" className="bg-purple-500 hover:bg-purple-600">
+                    Sell Space
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </motion.div>
 
         {/* Partnerships */}
