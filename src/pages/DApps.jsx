@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ExternalLink, TrendingUp, Shield, Coins, Repeat } from 'lucide-react';
+import { ArrowLeft, ExternalLink, TrendingUp, Shield as ShieldIcon, Coins, Repeat } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { Button } from '@/components/ui/button';
+import DIDManager from '@/components/identity/DIDManager';
 import AIChatbot from '@/components/chat/AIChatbot';
 
 const dapps = [
@@ -21,7 +23,8 @@ const dapps = [
 const categories = ['All', 'DEX', 'Lending', 'Staking', 'Yield', 'Stablecoin', 'Aggregator', 'Derivatives'];
 
 export default function DApps() {
-  const [activeCategory, setActiveCategory] = React.useState('All');
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [showDID, setShowDID] = useState(false);
 
   const filteredDapps = activeCategory === 'All' 
     ? dapps 
@@ -47,6 +50,13 @@ export default function DApps() {
               <p className="text-white/50 text-sm">Top decentralized applications</p>
             </div>
           </div>
+          <Button
+            onClick={() => setShowDID(true)}
+            className="bg-gradient-to-r from-purple-500 to-pink-500"
+          >
+            <ShieldIcon className="w-4 h-4 mr-2" />
+            DID Connect
+          </Button>
         </motion.div>
 
         {/* Stats */}
@@ -165,6 +175,12 @@ export default function DApps() {
           </div>
         </motion.div>
       </div>
+
+      <DIDManager
+        isOpen={showDID}
+        onClose={() => setShowDID(false)}
+        onConnect={(did) => console.log('DID for DApps:', did)}
+      />
 
       <AIChatbot />
     </div>

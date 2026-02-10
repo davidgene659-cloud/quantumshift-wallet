@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Wallet, Sparkles, Shield, CheckCircle2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Wallet, Sparkles, Shield as ShieldIcon, CheckCircle2, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { Button } from '@/components/ui/button';
+import DIDManager from '@/components/identity/DIDManager';
 import AIChatbot from '@/components/chat/AIChatbot';
 import { toast } from '@/components/ui/use-toast';
 
@@ -21,16 +23,21 @@ const casinos = [
 
 export default function Casinos() {
   const [connectingTo, setConnectingTo] = useState(null);
+  const [showDID, setShowDID] = useState(false);
+  const [useDID, setUseDID] = useState(false);
 
   const handleConnect = (casino) => {
+    const did = localStorage.getItem('did_address');
+    setUseDID(!!did);
     setConnectingTo(casino.name);
     
-    // Simulate wallet connection
     setTimeout(() => {
       setConnectingTo(null);
       toast({
         title: "Connected!",
-        description: `Your wallet is connected to ${casino.name}. Opening in new tab...`,
+        description: useDID 
+          ? `Connected anonymously via DID to ${casino.name}`
+          : `Your wallet is connected to ${casino.name}`,
       });
       window.open(casino.url, '_blank');
     }, 2000);
@@ -167,6 +174,12 @@ export default function Casinos() {
           </p>
         </motion.div>
       </div>
+
+      <DIDManager
+        isOpen={showDID}
+        onClose={() => setShowDID(false)}
+        onConnect={(did) => toast({ title: "DID Active", description: "All casino connections now use DID" })}
+      />
 
       <AIChatbot />
     </div>

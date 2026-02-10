@@ -23,7 +23,6 @@ const navItems = [
   { icon: Gamepad2, label: 'Casinos', page: 'Casinos' },
   { icon: Spade, label: 'Poker', page: 'Poker' },
   { icon: Landmark, label: 'Banking', page: 'Banking' },
-  { icon: Megaphone, label: 'Marketing', page: 'Marketing' },
 ];
 
 export default function Layout({ children }) {
