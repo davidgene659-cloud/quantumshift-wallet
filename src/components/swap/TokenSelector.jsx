@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, ChevronDown, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 
 const tokens = [
@@ -36,6 +37,11 @@ export default function TokenSelector({ selected, onSelect, excludeToken }) {
 
   const selectedToken = tokens.find(t => t.symbol === selected);
 
+  const DialogComponent = isMobile ? Drawer : Dialog;
+  const ContentComponent = isMobile ? DrawerContent : DialogContent;
+  const HeaderComponent = isMobile ? DrawerHeader : DialogHeader;
+  const TitleComponent = isMobile ? DrawerTitle : DialogTitle;
+
   return (
     <>
       <button
@@ -55,13 +61,14 @@ export default function TokenSelector({ selected, onSelect, excludeToken }) {
         <ChevronDown className="w-4 h-4 text-white/50" />
       </button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <DialogComponent open={open} onOpenChange={setOpen}>
         <ContentComponent className="bg-gray-900 border-white/10 text-white max-w-md">
           <HeaderComponent>
             <TitleComponent>Select Token</TitleComponent>
           </HeaderComponent>
           
-          <div className="relative mb-4">
+          <div className="p-4 space-y-4">
+            <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
             <Input
               value={search}
