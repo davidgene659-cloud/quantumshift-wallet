@@ -45,6 +45,15 @@ export default function TradingBots() {
 
   const createBotMutation = useMutation({
     mutationFn: (data) => base44.entities.TradingBot.create(data),
+    onMutate: async (newBot) => {
+      await queryClient.cancelQueries({ queryKey: ['tradingBots'] });
+      const previousBots = queryClient.getQueryData(['tradingBots']);
+      queryClient.setQueryData(['tradingBots'], (old = []) => [...old, { ...newBot, id: 'temp-' + Date.now() }]);
+      return { previousBots };
+    },
+    onError: (err, newBot, context) => {
+      queryClient.setQueryData(['tradingBots'], context.previousBots);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tradingBots'] });
       setShowCreateDialog(false);
@@ -53,11 +62,29 @@ export default function TradingBots() {
 
   const updateBotMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.TradingBot.update(id, data),
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['tradingBots'] });
+      const previousBots = queryClient.getQueryData(['tradingBots']);
+      queryClient.setQueryData(['tradingBots'], (old = []) => old.map(bot => bot.id === id ? { ...bot, ...data } : bot));
+      return { previousBots };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['tradingBots'], context.previousBots);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tradingBots'] }),
   });
 
   const createStrategyMutation = useMutation({
     mutationFn: (data) => base44.entities.TradingStrategy.create(data),
+    onMutate: async (newStrategy) => {
+      await queryClient.cancelQueries({ queryKey: ['tradingStrategies'] });
+      const previousStrategies = queryClient.getQueryData(['tradingStrategies']);
+      queryClient.setQueryData(['tradingStrategies'], (old = []) => [...old, { ...newStrategy, id: 'temp-' + Date.now() }]);
+      return { previousStrategies };
+    },
+    onError: (err, newStrategy, context) => {
+      queryClient.setQueryData(['tradingStrategies'], context.previousStrategies);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tradingStrategies'] });
       setShowStrategyBuilder(false);

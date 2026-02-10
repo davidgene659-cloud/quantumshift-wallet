@@ -30,6 +30,15 @@ export default function Banking() {
 
   const addAccountMutation = useMutation({
     mutationFn: (data) => base44.entities.BankAccount.create(data),
+    onMutate: async (newAccount) => {
+      await queryClient.cancelQueries({ queryKey: ['bankAccounts'] });
+      const previousAccounts = queryClient.getQueryData(['bankAccounts']);
+      queryClient.setQueryData(['bankAccounts'], (old = []) => [...old, { ...newAccount, id: 'temp-' + Date.now(), status: 'pending' }]);
+      return { previousAccounts };
+    },
+    onError: (err, newAccount, context) => {
+      queryClient.setQueryData(['bankAccounts'], context.previousAccounts);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bankAccounts'] });
       setShowAddDialog(false);
@@ -39,11 +48,29 @@ export default function Banking() {
 
   const removeAccountMutation = useMutation({
     mutationFn: (id) => base44.entities.BankAccount.delete(id),
+    onMutate: async (deletedId) => {
+      await queryClient.cancelQueries({ queryKey: ['bankAccounts'] });
+      const previousAccounts = queryClient.getQueryData(['bankAccounts']);
+      queryClient.setQueryData(['bankAccounts'], (old = []) => old.filter(acc => acc.id !== deletedId));
+      return { previousAccounts };
+    },
+    onError: (err, deletedId, context) => {
+      queryClient.setQueryData(['bankAccounts'], context.previousAccounts);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bankAccounts'] }),
   });
 
   const updateAccountMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.BankAccount.update(id, data),
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['bankAccounts'] });
+      const previousAccounts = queryClient.getQueryData(['bankAccounts']);
+      queryClient.setQueryData(['bankAccounts'], (old = []) => old.map(acc => acc.id === id ? { ...acc, ...data } : acc));
+      return { previousAccounts };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['bankAccounts'], context.previousAccounts);
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['bankAccounts'] }),
   });
 

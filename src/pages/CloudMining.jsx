@@ -38,6 +38,15 @@ export default function CloudMining() {
 
   const createMinerMutation = useMutation({
     mutationFn: (data) => base44.entities.CloudMiner.create(data),
+    onMutate: async (newMiner) => {
+      await queryClient.cancelQueries({ queryKey: ['cloudMiners'] });
+      const previousMiners = queryClient.getQueryData(['cloudMiners']);
+      queryClient.setQueryData(['cloudMiners'], (old = []) => [...old, { ...newMiner, id: 'temp-' + Date.now() }]);
+      return { previousMiners };
+    },
+    onError: (err, newMiner, context) => {
+      queryClient.setQueryData(['cloudMiners'], context.previousMiners);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cloudMiners'] });
       setShowCreateDialog(false);
