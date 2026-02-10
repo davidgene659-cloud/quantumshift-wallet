@@ -12,6 +12,8 @@ import TradingAIOptimizer from '@/components/bots/TradingAIOptimizer';
 import CustomStrategyBuilder from '@/components/bots/CustomStrategyBuilder';
 import PullToRefresh from '@/components/mobile/PullToRefresh';
 import AIChatbot from '@/components/chat/AIChatbot';
+import SentimentAnalysis from '@/components/bots/SentimentAnalysis';
+import VolatilityPredictor from '@/components/bots/VolatilityPredictor';
 
 const botTypes = [
   { type: 'arbitrage', name: 'Arbitrage Bot', icon: RefreshCw, description: 'Exploit price differences across exchanges', color: 'from-blue-500 to-cyan-500' },
@@ -195,11 +197,24 @@ export default function TradingBots() {
           ))}
         </motion.div>
 
+        {/* AI Analytics */}
+        {bots.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="grid md:grid-cols-2 gap-4"
+          >
+            <SentimentAnalysis tradingPairs={['BTC/USDT', 'ETH/USDT', 'SOL/USDT']} />
+            <VolatilityPredictor tradingPairs={['BTC/USDT', 'ETH/USDT']} />
+          </motion.div>
+        )}
+
         {/* Bots Grid */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.3 }}
         >
           <h2 className="text-xl font-bold text-white mb-4">Your Bots</h2>
           {bots.length > 0 ? (
