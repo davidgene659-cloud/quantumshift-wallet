@@ -47,8 +47,28 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import Portfolio from './pages/Portfolio';
+import Swap from './pages/Swap';
+import TradingBots from './pages/TradingBots';
+import CloudMining from './pages/CloudMining';
+import Poker from './pages/Poker';
+import Banking from './pages/Banking';
+import Send from './pages/Send';
+import Receive from './pages/Receive';
 
-export const pagesConfig = {
-	Pages: {}
+
+export const PAGES = {
+    "Portfolio": Portfolio,
+    "Swap": Swap,
+    "TradingBots": TradingBots,
+    "CloudMining": CloudMining,
+    "Poker": Poker,
+    "Banking": Banking,
+    "Send": Send,
+    "Receive": Receive,
 }
 
+export const pagesConfig = {
+    mainPage: "Portfolio",
+    Pages: PAGES,
+};
