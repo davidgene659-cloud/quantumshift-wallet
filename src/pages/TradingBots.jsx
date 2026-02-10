@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import BotCard from '@/components/bots/BotCard';
 import TradingAIOptimizer from '@/components/bots/TradingAIOptimizer';
 import CustomStrategyBuilder from '@/components/bots/CustomStrategyBuilder';
+import PullToRefresh from '@/components/mobile/PullToRefresh';
 import AIChatbot from '@/components/chat/AIChatbot';
 
 const botTypes = [
@@ -81,8 +82,19 @@ export default function TradingBots() {
     });
   };
 
+  const handleRefresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['tradingBots'] });
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-4 md:p-6">
+    <motion.div 
+      initial={{ opacity: 0, x: 100 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -100 }}
+      transition={{ type: 'tween', duration: 0.3 }}
+      className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-4 md:p-6"
+    >
+      <PullToRefresh onRefresh={handleRefresh}>
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <motion.div
@@ -261,6 +273,7 @@ export default function TradingBots() {
       />
 
       <AIChatbot />
-    </div>
+      </PullToRefresh>
+    </motion.div>
   );
 }

@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, Settings, Eye, EyeOff } from 'lucide-react';
+import { Bell, Settings as SettingsIcon, Eye, EyeOff } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 import PortfolioChart from '@/components/wallet/PortfolioChart';
 import QuickActions from '@/components/wallet/QuickActions';
 import TokenCard from '@/components/wallet/TokenCard';
+import PullToRefresh from '@/components/mobile/PullToRefresh';
 import AIChatbot from '@/components/chat/AIChatbot';
 
 const mockTokens = [
@@ -27,8 +30,21 @@ export default function Portfolio() {
 
   const totalValue = mockTokens.reduce((acc, t) => acc + (t.balance * t.price), 0);
 
+  const handleRefresh = async () => {
+    return new Promise(resolve => {
+      setTimeout(resolve, 1000);
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-4 md:p-6">
+    <motion.div 
+      initial={{ opacity: 0, x: 100 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -100 }}
+      transition={{ type: 'tween', duration: 0.3 }}
+      className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-4 md:p-6"
+    >
+      <PullToRefresh onRefresh={handleRefresh}>
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <motion.div
@@ -44,13 +60,19 @@ export default function Portfolio() {
             <button 
               onClick={() => setShowBalance(!showBalance)}
               className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all"
+              style={{ minWidth: '44px', minHeight: '44px' }}
             >
               {showBalance ? <Eye className="w-5 h-5 text-white/70" /> : <EyeOff className="w-5 h-5 text-white/70" />}
             </button>
-            <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all relative">
+            <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all relative" style={{ minWidth: '44px', minHeight: '44px' }}>
               <Bell className="w-5 h-5 text-white/70" />
               <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
             </button>
+            <Link to={createPageUrl('Settings')}>
+              <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all" style={{ minWidth: '44px', minHeight: '44px' }}>
+                <SettingsIcon className="w-5 h-5 text-white/70" />
+              </button>
+            </Link>
           </div>
         </motion.div>
 
@@ -105,6 +127,7 @@ export default function Portfolio() {
       </div>
 
       <AIChatbot />
-    </div>
-  );
-}
+      </PullToRefresh>
+      </motion.div>
+      );
+      }

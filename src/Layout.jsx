@@ -31,24 +31,33 @@ export default function Layout({ children }) {
   const currentPath = location.pathname;
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen bg-gray-950" style={{ 
+      overscrollBehaviorY: 'none',
+      paddingTop: 'env(safe-area-inset-top)',
+      paddingBottom: 'env(safe-area-inset-bottom)',
+      userSelect: 'none',
+      WebkitUserSelect: 'none'
+    }}>
       {children}
       
       {/* Bottom Navigation - Mobile */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-xl border-t border-white/10 md:hidden z-40">
-        <div className="flex justify-around items-center h-16 px-2">
+      <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-xl border-t border-white/10 md:hidden z-40" style={{
+        paddingBottom: 'env(safe-area-inset-bottom)'
+      }}>
+        <div className="flex justify-around items-center px-2" style={{ minHeight: '64px' }}>
           {navItems.map((item) => {
             const isActive = currentPath.includes(item.page);
             return (
               <Link
                 key={item.page}
                 to={createPageUrl(item.page)}
-                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${
+                className={`flex flex-col items-center gap-1 px-2 py-2 rounded-xl transition-all ${
                   isActive ? 'text-purple-400' : 'text-white/50 hover:text-white/70'
                 }`}
+                style={{ minWidth: '44px', minHeight: '44px' }}
               >
-                <item.icon className="w-5 h-5" />
-                <span className="text-[10px] font-medium">{item.label}</span>
+                <item.icon className="w-6 h-6" />
+                <span className="text-xs font-medium">{item.label}</span>
               </Link>
             );
           })}
@@ -66,17 +75,18 @@ export default function Layout({ children }) {
             const isActive = currentPath.includes(item.page);
             return (
               <Link
-                key={item.page}
-                to={createPageUrl(item.page)}
-                className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ${
-                  isActive 
-                    ? 'bg-purple-500/20 text-purple-400' 
-                    : 'text-white/50 hover:bg-white/5 hover:text-white/70'
-                }`}
-                title={item.label}
-              >
-                <item.icon className="w-6 h-6" />
-              </Link>
+                  key={item.page}
+                  to={createPageUrl(item.page)}
+                  className={`rounded-xl flex items-center justify-center transition-all ${
+                    isActive 
+                      ? 'bg-purple-500/20 text-purple-400' 
+                      : 'text-white/50 hover:bg-white/5 hover:text-white/70'
+                  }`}
+                  style={{ minWidth: '56px', minHeight: '56px' }}
+                  title={item.label}
+                >
+                  <item.icon className="w-6 h-6" />
+                </Link>
             );
           })}
         </div>

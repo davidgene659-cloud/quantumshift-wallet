@@ -47,32 +47,34 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import Banking from './pages/Banking';
+import Casinos from './pages/Casinos';
+import CloudMining from './pages/CloudMining';
+import DApps from './pages/DApps';
+import Marketing from './pages/Marketing';
+import Poker from './pages/Poker';
 import Portfolio from './pages/Portfolio';
+import Receive from './pages/Receive';
+import Send from './pages/Send';
 import Swap from './pages/Swap';
 import TradingBots from './pages/TradingBots';
-import CloudMining from './pages/CloudMining';
-import Poker from './pages/Poker';
-import Banking from './pages/Banking';
-import Send from './pages/Send';
-import Receive from './pages/Receive';
-import DApps from './pages/DApps';
-import Casinos from './pages/Casinos';
-import Marketing from './pages/Marketing';
+import Settings from './pages/Settings';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "Banking": Banking,
+    "Casinos": Casinos,
+    "CloudMining": CloudMining,
+    "DApps": DApps,
+    "Marketing": Marketing,
+    "Poker": Poker,
     "Portfolio": Portfolio,
+    "Receive": Receive,
+    "Send": Send,
     "Swap": Swap,
     "TradingBots": TradingBots,
-    "CloudMining": CloudMining,
-    "Poker": Poker,
-    "Banking": Banking,
-    "Send": Send,
-    "Receive": Receive,
-    "DApps": DApps,
-    "Casinos": Casinos,
-    "Marketing": Marketing,
+    "Settings": Settings,
 }
 
 export const pagesConfig = {
