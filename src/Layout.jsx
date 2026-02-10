@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
@@ -28,20 +28,45 @@ const navItems = [
 export default function Layout({ children }) {
   const location = useLocation();
   const currentPath = location.pathname;
+  const scrollPositions = useRef({});
+  const contentRef = useRef(null);
+
+  useEffect(() => {
+    if (contentRef.current) {
+      const savedPosition = scrollPositions.current[currentPath] || 0;
+      contentRef.current.scrollTop = savedPosition;
+    }
+  }, [currentPath]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (contentRef.current) {
+        scrollPositions.current[currentPath] = contentRef.current.scrollTop;
+      }
+    };
+
+    const contentEl = contentRef.current;
+    contentEl?.addEventListener('scroll', handleScroll);
+    return () => contentEl?.removeEventListener('scroll', handleScroll);
+  }, [currentPath]);
 
   return (
     <div className="min-h-screen bg-gray-950" style={{ 
       overscrollBehaviorY: 'none',
-      paddingTop: 'env(safe-area-inset-top)',
-      paddingBottom: 'env(safe-area-inset-bottom)',
+      paddingTop: 'max(env(safe-area-inset-top), 0px)',
+      paddingBottom: 'max(env(safe-area-inset-bottom), 0px)',
+      paddingLeft: 'max(env(safe-area-inset-left), 0px)',
+      paddingRight: 'max(env(safe-area-inset-right), 0px)',
       userSelect: 'none',
       WebkitUserSelect: 'none'
     }}>
-      {children}
+      <div ref={contentRef} style={{ height: '100vh', overflow: 'auto' }}>
+        {children}
+      </div>
       
       {/* Bottom Navigation - Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-xl border-t border-white/10 md:hidden z-40" style={{
-        paddingBottom: 'env(safe-area-inset-bottom)'
+        paddingBottom: 'max(env(safe-area-inset-bottom), 0px)'
       }}>
         <div className="flex justify-around items-center px-2" style={{ minHeight: '64px' }}>
           {navItems.map((item) => {

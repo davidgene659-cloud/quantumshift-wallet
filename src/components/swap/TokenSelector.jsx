@@ -19,6 +19,14 @@ const tokens = [
 export default function TokenSelector({ selected, onSelect, excludeToken }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const filteredTokens = tokens.filter(t => 
     t.symbol !== excludeToken &&
@@ -48,10 +56,10 @@ export default function TokenSelector({ selected, onSelect, excludeToken }) {
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-gray-900 border-white/10 text-white max-w-md">
-          <DialogHeader>
-            <DialogTitle>Select Token</DialogTitle>
-          </DialogHeader>
+        <ContentComponent className="bg-gray-900 border-white/10 text-white max-w-md">
+          <HeaderComponent>
+            <TitleComponent>Select Token</TitleComponent>
+          </HeaderComponent>
           
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
@@ -88,8 +96,8 @@ export default function TokenSelector({ selected, onSelect, excludeToken }) {
               </motion.button>
             ))}
           </div>
-        </DialogContent>
-      </Dialog>
+        </ContentComponent>
+      </DialogComponent>
     </>
   );
 }
