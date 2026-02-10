@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus, RefreshCw, TrendingUp, Coins, Zap, Crown } from 'lucide-react';
+import { ArrowLeft, Plus, RefreshCw, TrendingUp, Coins, Zap, Crown, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import BotCard from '@/components/bots/BotCard';
 import TradingAIOptimizer from '@/components/bots/TradingAIOptimizer';
+import CustomStrategyBuilder from '@/components/bots/CustomStrategyBuilder';
 import AIChatbot from '@/components/chat/AIChatbot';
 
 const botTypes = [
@@ -28,11 +29,17 @@ const tiers = [
 export default function TradingBots() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showTierDialog, setShowTierDialog] = useState(false);
+  const [showStrategyBuilder, setShowStrategyBuilder] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: bots = [] } = useQuery({
     queryKey: ['tradingBots'],
     queryFn: () => base44.entities.TradingBot.list(),
+  });
+
+  const { data: strategies = [] } = useQuery({
+    queryKey: ['tradingStrategies'],
+    queryFn: () => base44.entities.TradingStrategy.list(),
   });
 
   const createBotMutation = useMutation({
@@ -46,6 +53,14 @@ export default function TradingBots() {
   const updateBotMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.TradingBot.update(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tradingBots'] }),
+  });
+
+  const createStrategyMutation = useMutation({
+    mutationFn: (data) => base44.entities.TradingStrategy.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tradingStrategies'] });
+      setShowStrategyBuilder(false);
+    },
   });
 
   const handleCreateBot = (type) => {
@@ -102,6 +117,14 @@ export default function TradingBots() {
             >
               <Crown className="w-4 h-4 mr-2" />
               Upgrade
+            </Button>
+            <Button
+              onClick={() => setShowStrategyBuilder(true)}
+              variant="outline"
+              className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/20"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Custom Strategy
             </Button>
             <Button
               onClick={() => setShowCreateDialog(true)}
@@ -230,6 +253,12 @@ export default function TradingBots() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <CustomStrategyBuilder
+        isOpen={showStrategyBuilder}
+        onClose={() => setShowStrategyBuilder(false)}
+        onSave={(strategy) => createStrategyMutation.mutate(strategy)}
+      />
 
       <AIChatbot />
     </div>

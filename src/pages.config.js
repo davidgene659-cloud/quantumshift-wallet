@@ -57,6 +57,7 @@ import Send from './pages/Send';
 import Receive from './pages/Receive';
 import DApps from './pages/DApps';
 import Casinos from './pages/Casinos';
+import Marketing from './pages/Marketing';
 import __Layout from './Layout.jsx';
 
 
@@ -71,6 +72,7 @@ export const PAGES = {
     "Receive": Receive,
     "DApps": DApps,
     "Casinos": Casinos,
+    "Marketing": Marketing,
 }
 
 export const pagesConfig = {
