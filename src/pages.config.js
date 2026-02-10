@@ -60,6 +60,7 @@ import Swap from './pages/Swap';
 import TradingBots from './pages/TradingBots';
 import Settings from './pages/Settings';
 import Privacy from './pages/Privacy';
+import Analytics from './pages/Analytics';
 import __Layout from './Layout.jsx';
 
 
@@ -77,6 +78,7 @@ export const PAGES = {
     "TradingBots": TradingBots,
     "Settings": Settings,
     "Privacy": Privacy,
+    "Analytics": Analytics,
 }
 
 export const pagesConfig = {
