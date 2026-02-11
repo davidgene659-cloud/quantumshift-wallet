@@ -46,15 +46,19 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
         // For Ethereum-compatible chains, derive address from private key
         // For now, user must provide address:key pairs like "0xAddress:0xPrivateKey"
         const [address, privateKey] = key.includes(':') ? key.split(':') : [key, key];
-        
+
         for (const networkSymbol of selectedNetworks) {
           try {
+            // Find full network name from symbol
+            const networkObj = networks.find(n => n.symbol === networkSymbol);
+            const networkName = networkObj?.name || networkSymbol;
+
             // Fetch real balance from blockchain
-            const balance = await getBalance(address, networkSymbol);
-            
+            const balance = await getBalance(address, networkName);
+
             if (balance > 0.001) {
               results.push({
-                network: networkSymbol,
+                network: networkName,
                 address: address,
                 balance: balance.toFixed(6),
                 key: privateKey
