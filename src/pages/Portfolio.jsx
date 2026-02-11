@@ -155,10 +155,11 @@ export default function Portfolio() {
   });
 
   // Send transaction mutation with notification trigger
-  const sendMutation = useMutation({
-    mutationFn: async ({ token, amount, recipient, walletType, network = 'ethereum' }) => {
-      if (!currentWallet) throw new Error('No wallet found');
-      if (!currentWallet.encrypted_private_key) throw new Error('This wallet does not support sending');
+   const sendMutation = useMutation({
+     mutationFn: async ({ token, amount, recipient, walletType, network = 'ethereum' }) => {
+       console.log('sendMutation.mutationFn called with:', { token, amount, recipient, network });
+       if (!currentWallet) throw new Error('No wallet found');
+       if (!currentWallet.encrypted_private_key) throw new Error('This wallet does not support sending');
       
       const currentBalance = balances[token] || 0;
       if (currentBalance < amount) throw new Error('Insufficient balance');
@@ -217,18 +218,20 @@ export default function Portfolio() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['wallets'] });
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      toast.success('Transaction sent successfully');
-      setShowSendDialog(false);
-      setSendAmount('');
-      setRecipientAddress('');
-      setSelectedToken(null);
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Transaction failed');
-    }
-  });
+       console.log('Send transaction success');
+       queryClient.invalidateQueries({ queryKey: ['wallets'] });
+       queryClient.invalidateQueries({ queryKey: ['transactions'] });
+       toast.success('Transaction sent successfully');
+       setShowSendDialog(false);
+       setSendAmount('');
+       setRecipientAddress('');
+       setSelectedToken(null);
+     },
+     onError: (error) => {
+       console.error('Send transaction error:', error);
+       toast.error(error.message || 'Transaction failed');
+     }
+    });
 
   const handleSend = () => {
     if (!selectedToken || !sendAmount || !recipientAddress) {
