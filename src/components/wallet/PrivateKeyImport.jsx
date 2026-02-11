@@ -21,64 +21,52 @@ const networks = [
 
 export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
   const [privateKeys, setPrivateKeys] = useState('');
-  const [isScanning, setIsScanning] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [scanResults, setScanResults] = useState([]);
-  const [selectedNetworks, setSelectedNetworks] = useState(networks.map(n => n.symbol));
+  const [importResults, setImportResults] = useState([]);
   const [importType, setImportType] = useState('private_key'); // private_key, hardware
 
-  const toggleNetwork = (symbol) => {
-    setSelectedNetworks(prev => 
-      prev.includes(symbol) ? prev.filter(s => s !== symbol) : [...prev, symbol]
-    );
+  const parseAndValidateKeys = () => {
+    const keys = privateKeys.split('\n').filter(k => k.trim());
+    if (keys.length === 0) return [];
+
+    const results = [];
+    for (const key of keys) {
+      // Parse format: address:privateKey:network:balance
+      const parts = key.split(':');
+      const address = parts[0]?.trim();
+      const privateKey = parts[1]?.trim();
+      const specifiedNetwork = parts[2]?.trim();
+      const specifiedBalance = parts[3]?.trim();
+
+      if (!address || !privateKey || !specifiedNetwork || !specifiedBalance) {
+        continue;
+      }
+
+      const networkObj = networks.find(n => 
+        n.symbol.toLowerCase() === specifiedNetwork.toLowerCase() ||
+        n.name.toLowerCase() === specifiedNetwork.toLowerCase()
+      );
+      
+      if (networkObj && parseFloat(specifiedBalance) > 0) {
+        results.push({
+          network: networkObj.name,
+          address: address,
+          balance: parseFloat(specifiedBalance).toFixed(6),
+          key: privateKey
+        });
+      }
+    }
+
+    return results;
   };
 
-  const scanPrivateKeys = async () => {
-    const keys = privateKeys.split('\n').filter(k => k.trim());
-    if (keys.length === 0) return;
-
-    setIsScanning(true);
-    setScanResults([]);
-
-    try {
-      const results = [];
-      for (const key of keys) {
-        // Parse format: address:privateKey:network:balance
-        const parts = key.split(':');
-        const address = parts[0]?.trim();
-        const privateKey = parts[1]?.trim();
-        const specifiedNetwork = parts[2]?.trim();
-        const specifiedBalance = parts[3]?.trim();
-
-        if (!address || !privateKey || !specifiedNetwork || !specifiedBalance) {
-          console.warn('Skipping invalid entry - must be address:privateKey:network:balance');
-          continue;
-        }
-
-        const networkObj = networks.find(n => 
-          n.symbol.toLowerCase() === specifiedNetwork.toLowerCase() ||
-          n.name.toLowerCase() === specifiedNetwork.toLowerCase()
-        );
-        
-        if (networkObj && parseFloat(specifiedBalance) > 0) {
-          results.push({
-            network: networkObj.name,
-            address: address,
-            balance: parseFloat(specifiedBalance).toFixed(6),
-            key: privateKey
-          });
-        }
-      }
-
-      setScanResults(results);
-      if (results.length === 0) {
-        toast.error('No valid entries. Format: address:privateKey:network:balance');
-      }
-    } catch (error) {
-      console.error('Scan failed:', error);
-      toast.error('Scan failed');
-    } finally {
-      setIsScanning(false);
+  const handleValidate = () => {
+    const results = parseAndValidateKeys();
+    if (results.length === 0) {
+      toast.error('No valid entries. Format: address:privateKey:network:balance');
+    } else {
+      setImportResults(results);
+      toast.success(`${results.length} wallet(s) ready to import`);
     }
   };
 
