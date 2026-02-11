@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ArrowUpRight, ArrowDownLeft, RefreshCw, Landmark, Gamepad2, Bot, Cpu, Grid3x3, Shield } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, RefreshCw, Landmark, Gamepad2, Bot, Cpu, Grid3x3, Shield, Image } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
@@ -8,6 +8,7 @@ const actions = [
   { icon: ArrowUpRight, label: 'Send', color: 'from-blue-500 to-cyan-500', page: 'Send' },
   { icon: ArrowDownLeft, label: 'Receive', color: 'from-green-500 to-emerald-500', page: 'Receive' },
   { icon: RefreshCw, label: 'Swap', color: 'from-purple-500 to-pink-500', page: 'Swap' },
+  { icon: Image, label: 'NFTs', color: 'from-fuchsia-500 to-pink-500', page: 'NFTs' },
   { icon: Shield, label: 'Privacy', color: 'from-emerald-500 to-teal-500', page: 'Privacy' },
   { icon: Grid3x3, label: 'DApps', color: 'from-violet-500 to-purple-500', page: 'DApps' },
   { icon: Gamepad2, label: 'Casinos', color: 'from-pink-500 to-rose-500', page: 'Casinos' },
@@ -18,7 +19,7 @@ const actions = [
 
 export default function QuickActions() {
   return (
-    <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-3">
+    <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-3">
       {actions.map((action, index) => (
         <Link key={action.label} to={createPageUrl(action.page)}>
           <motion.div
