@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ExternalLink, TrendingUp, Shield as ShieldIcon, Coins, Repeat } from 'lucide-react';
+import { ArrowLeft, ExternalLink, TrendingUp, Shield as ShieldIcon, Coins, Repeat, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
