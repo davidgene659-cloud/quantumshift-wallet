@@ -7,16 +7,17 @@ import { Loader2, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { createAndSignTransaction, broadcastTransaction, getBalance } from '@/functions/bitcoinService';
 
-export default function BitcoinSendDialog({ isOpen, onClose, selectedToken, onSuccess }) {
+export default function BitcoinSendDialog({ isOpen, onClose, wallet, onSuccess }) {
   const [sendAmount, setSendAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [txStatus, setTxStatus] = useState(null);
+  const [txHash, setTxHash] = useState(null);
   const [privateKeyInput, setPrivateKeyInput] = useState('');
   const [showKeyInput, setShowKeyInput] = useState(false);
 
   const handleSend = async () => {
-    if (!selectedToken || !sendAmount || !recipientAddress || !privateKeyInput) {
+    if (!wallet || !sendAmount || !recipientAddress || !privateKeyInput) {
       toast.error('Please fill all fields');
       return;
     }
@@ -34,7 +35,7 @@ export default function BitcoinSendDialog({ isOpen, onClose, selectedToken, onSu
         privateKeyInput,
         recipientAddress,
         amountSatoshis,
-        selectedToken.address
+        wallet.address
       );
 
       // Broadcast
@@ -42,18 +43,20 @@ export default function BitcoinSendDialog({ isOpen, onClose, selectedToken, onSu
       toast.loading('Broadcasting to Bitcoin mainnet...');
       const result = await broadcastTransaction(rawTx);
 
+      setTxHash(result);
       setTxStatus('success');
-      toast.success(`Transaction broadcast! TXID: ${result}`);
+      toast.success(`Transaction broadcast! TXID: ${result.slice(0, 16)}...`);
       
       setTimeout(() => {
         onClose();
-        onSuccess(result);
+        onSuccess?.(result);
         setPrivateKeyInput('');
         setSendAmount('');
         setRecipientAddress('');
         setShowKeyInput(false);
         setTxStatus(null);
-      }, 2000);
+        setTxHash(null);
+      }, 3000);
     } catch (error) {
       setTxStatus('error');
       toast.error(error.message);
@@ -70,17 +73,31 @@ export default function BitcoinSendDialog({ isOpen, onClose, selectedToken, onSu
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
-          {!txStatus ? (
-            <>
-              <div>
-                <Label className="text-white/70">Available Balance</Label>
-                <p className="text-2xl font-bold text-white mt-1">
-                  {selectedToken?.balance.toFixed(6)} BTC
-                </p>
-                <p className="text-white/50 text-sm">
-                  ≈ ${(selectedToken?.balance * 43250).toFixed(2)}
-                </p>
-              </div>
+           {txStatus === 'success' ? (
+             <div className="text-center py-6">
+               <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+               <p className="text-white font-semibold">Transaction Broadcast!</p>
+               <p className="text-white/50 text-xs mt-2 font-mono break-all">{txHash}</p>
+               <a
+                 href={`https://mempool.space/tx/${txHash}`}
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="text-orange-400 hover:text-orange-300 text-sm mt-3 inline-flex items-center gap-2"
+               >
+                 View on Mempool <ExternalLink className="w-4 h-4" />
+               </a>
+             </div>
+           ) : !txStatus ? (
+             <>
+               <div>
+                 <Label className="text-white/70">Available Balance</Label>
+                 <p className="text-2xl font-bold text-white mt-1">
+                   {wallet && typeof wallet.balances?.BTC === 'number' ? wallet.balances.BTC.toFixed(6) : '0'} BTC
+                 </p>
+                 <p className="text-white/50 text-sm">
+                   ≈ ${wallet && typeof wallet.balances?.BTC === 'number' ? (wallet.balances.BTC * 43250).toFixed(2) : '0'}
+                 </p>
+               </div>
 
               <div>
                 <Label className="text-white/70">Amount (BTC)</Label>
@@ -94,7 +111,7 @@ export default function BitcoinSendDialog({ isOpen, onClose, selectedToken, onSu
                     step="0.00000001"
                   />
                   <Button
-                    onClick={() => setSendAmount(selectedToken?.balance.toString())}
+                    onClick={() => wallet && typeof wallet.balances?.BTC === 'number' && setSendAmount((wallet.balances.BTC * 0.995).toString())}
                     variant="outline"
                     className="border-white/20 text-white"
                   >
@@ -159,12 +176,6 @@ export default function BitcoinSendDialog({ isOpen, onClose, selectedToken, onSu
                 )}
               </Button>
             </>
-          ) : txStatus === 'success' ? (
-            <div className="text-center py-6">
-              <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
-              <p className="text-white font-semibold">Transaction Broadcast Successfully!</p>
-              <p className="text-white/50 text-sm mt-2">Check block explorer to confirm</p>
-            </div>
           ) : txStatus === 'error' ? (
             <div className="text-center py-6">
               <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
