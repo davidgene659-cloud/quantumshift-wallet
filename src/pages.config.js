@@ -66,6 +66,7 @@ import Education from './pages/Education';
 import Legacy from './pages/Legacy';
 import AIHub from './pages/AIHub';
 import DeFiStrategies from './pages/DeFiStrategies';
+import NFTs from './pages/NFTs';
 import __Layout from './Layout.jsx';
 
 
@@ -89,6 +90,7 @@ export const PAGES = {
     "Legacy": Legacy,
     "AIHub": AIHub,
     "DeFiStrategies": DeFiStrategies,
+    "NFTs": NFTs,
 }
 
 export const pagesConfig = {
