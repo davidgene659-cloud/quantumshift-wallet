@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import TokenSelector, { tokens } from '@/components/swap/TokenSelector';
 import AIChatbot from '@/components/chat/AIChatbot';
+import NetworkWalletSelector from '@/components/wallet/NetworkWalletSelector';
+import { getNetworkTokens, getNetworkDisplay } from '@/components/wallet/NetworkTokens';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { decryptPrivateKey, sendBitcoinTransaction, sendEthereumTransaction, sendSolanaTransaction } from '@/components/blockchain/blockchainService';
@@ -20,7 +22,8 @@ export default function Send() {
   const [isSending, setIsSending] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [user, setUser] = useState(null);
-  const [wallet, setWallet] = useState(null);
+  const [wallets, setWallets] = useState([]);
+  const [selectedWalletId, setSelectedWalletId] = useState(null);
   const [showWarning, setShowWarning] = useState(false);
   const [error, setError] = useState('');
 
@@ -30,18 +33,30 @@ export default function Send() {
 
   useEffect(() => {
     if (user) {
-      base44.entities.Wallet.filter({ user_id: user.id }).then(wallets => {
-        if (wallets.length > 0) {
-          // Try primary wallet first, then any wallet
-          const primaryWallet = wallets.find(w => w.is_primary);
-          setWallet(primaryWallet || wallets[0]);
+      base44.entities.Wallet.filter({ user_id: user.id }).then(fetchedWallets => {
+        setWallets(fetchedWallets);
+        if (fetchedWallets.length > 0) {
+          const primaryWallet = fetchedWallets.find(w => w.is_primary);
+          setSelectedWalletId((primaryWallet || fetchedWallets[0]).id);
+          // Set default token based on primary network
+          const network = (primaryWallet || fetchedWallets[0]).networks?.[0];
+          if (network) {
+            const networkTokens = getNetworkTokens(network);
+            setToken(networkTokens[0] || 'ETH');
+          }
         }
       }).catch(err => console.error('Failed to fetch wallets:', err));
     }
   }, [user]);
 
+  const selectedWallet = wallets.find(w => w.id === selectedWalletId);
   const selectedToken = tokens.find(t => t.symbol === token);
   const usdValue = amount && selectedToken ? (parseFloat(amount) * selectedToken.price).toFixed(2) : '0.00';
+  
+  // Get available tokens for selected wallet's network
+  const walletNetwork = selectedWallet?.networks?.[0];
+  const availableTokens = walletNetwork ? getNetworkTokens(walletNetwork) : [];
+  const networkDisplay = walletNetwork ? getNetworkDisplay(walletNetwork) : { symbol: 'Unknown', color: 'from-gray-500' };
 
   const handleSend = async () => {
     if (!amount || !address) {
@@ -49,7 +64,7 @@ export default function Send() {
       return;
     }
     
-    if (!wallet || !wallet.encrypted_private_key) {
+    if (!selectedWallet || !selectedWallet.encrypted_private_key) {
       setError('No wallet configured. Please import a wallet first.');
       setShowWarning(true);
       return;
@@ -59,11 +74,11 @@ export default function Send() {
     setError('');
 
     try {
-      const decryptedKey = decryptPrivateKey(wallet.encrypted_private_key);
+      const decryptedKey = decryptPrivateKey(selectedWallet.encrypted_private_key);
       let txHash;
 
-      // Determine network from token
-      const network = token === 'BTC' ? 'bitcoin' : token === 'SOL' ? 'solana' : 'ethereum';
+      // Determine network from wallet
+      const network = walletNetwork === 'Bitcoin' ? 'bitcoin' : walletNetwork === 'Solana' ? 'solana' : 'ethereum';
 
       if (network === 'bitcoin') {
         txHash = await sendBitcoinTransaction(decryptedKey, address, parseFloat(amount));
@@ -85,7 +100,7 @@ export default function Send() {
         status: 'completed',
         usd_value: parseFloat(usdValue),
         tx_hash: txHash,
-        network: network
+        network: walletNetwork
       });
 
       setShowSuccess(true);
@@ -140,12 +155,52 @@ export default function Send() {
           )}
 
           <div className="bg-gradient-to-br from-white/5 to-white/[0.02] backdrop-blur-xl border border-white/10 rounded-3xl p-6 space-y-6">
+            {/* Wallet Selection */}
+            {wallets.length > 0 && (
+              <NetworkWalletSelector 
+                wallets={wallets} 
+                selectedWalletId={selectedWalletId} 
+                onSelectWallet={(id) => {
+                  setSelectedWalletId(id);
+                  const newWallet = wallets.find(w => w.id === id);
+                  const newNetwork = newWallet?.networks?.[0];
+                  if (newNetwork) {
+                    const newTokens = getNetworkTokens(newNetwork);
+                    setToken(newTokens[0] || 'ETH');
+                  }
+                }}
+              />
+            )}
+
+            {/* Network Info */}
+            {walletNetwork && (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${networkDisplay.color} flex items-center justify-center text-sm font-bold text-white`}>
+                  {networkDisplay.symbol[0]}
+                </div>
+                <div>
+                  <p className="text-white/70 text-xs uppercase tracking-wider">Network</p>
+                  <p className="text-white font-semibold">{walletNetwork}</p>
+                </div>
+              </div>
+            )}
+
             {/* Token Selection */}
             <div>
               <Label className="text-white/70 mb-2 block">Select Token</Label>
               <div className="flex items-center gap-3">
-                <TokenSelector selected={token} onSelect={setToken} />
-                <span className="text-white/50">Balance: 0.00 {token}</span>
+                <select
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white appearance-none cursor-pointer hover:bg-white/15 transition-all"
+                >
+                  {availableTokens.map(tokenSymbol => (
+                    <option key={tokenSymbol} value={tokenSymbol}>
+                      {tokenSymbol}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-white/50 text-sm">Balance: 0.00</span>
               </div>
             </div>
 
