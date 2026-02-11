@@ -1,6 +1,4 @@
 import CryptoJS from 'crypto-js';
-import * as bitcoin from 'bitcoinjs-lib';
-import { ethers } from 'ethers';
 
 const ENCRYPTION_KEY = 'your-app-encryption-key-change-this'; // In production, use env variable
 
@@ -134,176 +132,72 @@ export const getBalance = async (address, network) => {
   }
 };
 
-// Sign and broadcast Bitcoin transaction
-export const sendBitcoinTransaction = async (privateKeyWIF, recipientAddress, amount, feeRate = 10) => {
-  try {
-    const keyPair = bitcoin.ECPair.fromWIF(privateKeyWIF, bitcoin.networks.bitcoin);
-    const senderAddress = bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey }).address;
-
-    // Get UTXO (simplified - in production, use proper UTXO management)
-    const utxos = await fetch(`https://blockchain.info/unspent?active=${senderAddress}`)
-      .then(r => r.json())
-      .then(data => data.unspent_outputs);
-
-    if (!utxos || utxos.length === 0) throw new Error('No UTXOs available');
-
-    const psbt = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin });
-
-    let totalInput = 0;
-    for (const utxo of utxos) {
-      const tx = await fetch(`https://blockchain.info/rawtx/${utxo.tx_hash}?format=hex`).then(r => r.text());
-      psbt.addInput({
-        hash: utxo.tx_hash,
-        index: utxo.tx_output_n,
-        nonWitnessUtxo: Buffer.from(tx, 'hex'),
-      });
-      totalInput += utxo.value / 1e8;
-      if (totalInput >= amount) break;
-    }
-
-    const fee = (psbt.inputCount * 148 + 34 * 2 + 10) / 1000 * feeRate / 1e8;
-    const change = totalInput - amount - fee;
-
-    psbt.addOutput({
-      address: recipientAddress,
-      value: Math.floor(amount * 1e8),
-    });
-
-    if (change > 0) {
-      psbt.addOutput({
-        address: senderAddress,
-        value: Math.floor(change * 1e8),
-      });
-    }
-
-    psbt.signAllInputs(keyPair);
-    psbt.finalizeAllInputs();
-
-    const txHex = psbt.extractTransaction().toHex();
-    return await bitcoinService.broadcastTransaction(txHex);
-  } catch (error) {
-    console.error('Bitcoin transaction failed:', error);
-    throw error;
-  }
-};
-
-// Sign and broadcast Ethereum transaction
-export const sendEthereumTransaction = async (privateKey, toAddress, amount, gasLimit = '21000') => {
-  try {
-    const wallet = new ethers.Wallet(privateKey);
-    const provider = new ethers.JsonRpcProvider('https://eth.llamarpc.com');
-    const signer = wallet.connect(provider);
-
-    const tx = await signer.sendTransaction({
-      to: toAddress,
-      value: ethers.parseEther(amount.toString()),
-      gasLimit: gasLimit,
-    });
-
-    return tx.hash;
-  } catch (error) {
-    console.error('Ethereum transaction failed:', error);
-    throw error;
-  }
-};
-
-// Sign and broadcast Solana transaction
-export const sendSolanaTransaction = async (privateKeyBase58, recipientAddress, amount) => {
-  try {
-    // Note: Solana transaction signing requires @solana/web3.js library
-    // This is a placeholder - implement with proper Solana SDK
-    throw new Error('Solana transactions require additional SDK setup. Use @solana/web3.js');
-  } catch (error) {
-    console.error('Solana transaction failed:', error);
-    throw error;
-  }
-};
-
-// Solana RPC endpoint (using public Helius RPC)
-const SOLANA_RPC = 'https://rpc.helius.so?api-key=fake-key'; // Use env var in production
-
-// Solana service
+// Solana
 export const solanaService = {
   async getBalance(address) {
-    try {
-      const response = await fetch(SOLANA_RPC, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getBalance',
-          params: [address],
-        }),
-      });
-      const data = await response.json();
-      return (data.result?.value || 0) / 1e9; // Convert lamports to SOL
-    } catch (error) {
-      console.error('Failed to fetch Solana balance:', error);
-      return 0;
-    }
+    const response = await fetch('https://api.mainnet-beta.solana.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'getBalance',
+        params: [address],
+        id: 1
+      })
+    });
+    const data = await response.json();
+    return (data.result?.value || 0) / 1e9; // Convert lamports to SOL
   },
 
-  async broadcastTransaction(signedTxBase64) {
-    try {
-      const response = await fetch(SOLANA_RPC, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'sendTransaction',
-          params: [signedTxBase64, { skipPreflight: false }],
-        }),
-      });
-      const data = await response.json();
-      if (data.error) throw new Error(data.error.message);
-      return data.result;
-    } catch (error) {
-      console.error('Solana broadcast failed:', error);
-      throw error;
-    }
+  async broadcastTransaction(signedTxHex) {
+    const response = await fetch('https://api.mainnet-beta.solana.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'sendTransaction',
+        params: [signedTxHex],
+        id: 1
+      })
+    });
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.result;
   },
 
-  async getTransactionStatus(txSignature) {
-    try {
-      const response = await fetch(SOLANA_RPC, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getSignatureStatus',
-          params: [txSignature],
-        }),
-      });
-      const data = await response.json();
-      const status = data.result?.value;
-      return {
-        confirmations: status?.confirmations || 0,
-        status: status?.err ? 'failed' : status?.confirmationStatus || 'pending',
-      };
-    } catch (error) {
-      console.error('Failed to fetch Solana tx status:', error);
-      return { confirmations: 0, status: 'unknown' };
-    }
-  },
+  async getTransactionStatus(txHash) {
+    const response = await fetch('https://api.mainnet-beta.solana.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'getTransaction',
+        params: [txHash],
+        id: 1
+      })
+    });
+    const data = await response.json();
+    return {
+      confirmations: data.result ? 1 : 0,
+      status: data.result ? 'confirmed' : 'pending'
+    };
+  }
 };
 
-// Get token contract addresses
+// Get token contract addresses by network
 export const TOKEN_CONTRACTS = {
   // Ethereum
-  USDT: '0xdac17f958d2ee523a2206206994597c13d831ec7',
-  USDC: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
-  // Solana token mints
-  SOL_USDT: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenErt',
-  SOL_USDC: 'EPjFWaLb3odccccVch3sSwbzhdDMsKx9c9X8pkgJwUv',
+  USDT_ETH: '0xdac17f958d2ee523a2206206994597c13d831ec7',
+  USDC_ETH: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+  // Polygon
+  USDT_POLYGON: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f',
+  USDC_POLYGON: '0x2791bca1f2de4661ed88a30c99a7a9449aa84174',
 };
 
 export const getTokenBalance = async (address, token, network = 'ethereum') => {
   try {
     if (network.toLowerCase() === 'ethereum' || network.toLowerCase() === 'eth') {
-      const contract = TOKEN_CONTRACTS[token.toUpperCase()];
+      const contract = TOKEN_CONTRACTS[`${token.toUpperCase()}_ETH`];
       if (!contract) return 0;
       return await ethereumService.getTokenBalance(address, contract);
     }
@@ -312,4 +206,49 @@ export const getTokenBalance = async (address, token, network = 'ethereum') => {
     console.error(`Failed to fetch ${token} balance:`, error);
     return 0;
   }
+};
+
+// Real-time price feed using CoinGecko API (free, no auth required)
+export const priceService = {
+  async getPrices(tokenIds = []) {
+    try {
+      const ids = tokenIds.join(',');
+      const response = await fetch(
+        `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true`
+      );
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to fetch prices:', error);
+      return {};
+    }
+  },
+
+  async getPriceChange(tokenId, days = 1) {
+    try {
+      const response = await fetch(
+        `https://api.coingecko.com/api/v3/coins/${tokenId}/market_chart?vs_currency=usd&days=${days}`
+      );
+      const data = await response.json();
+      return data.prices || [];
+    } catch (error) {
+      console.error('Failed to fetch price history:', error);
+      return [];
+    }
+  }
+};
+
+// Token ID mapping for CoinGecko API
+export const COINGECKO_IDS = {
+  BTC: 'bitcoin',
+  ETH: 'ethereum',
+  SOL: 'solana',
+  ADA: 'cardano',
+  USDT: 'tether',
+  USDC: 'usd-coin',
+  BNB: 'binancecoin',
+  DOGE: 'dogecoin',
+  MATIC: 'matic-network',
+  LINK: 'chainlink',
+  AVAX: 'avalanche-2',
+  DOT: 'polkadot'
 };
