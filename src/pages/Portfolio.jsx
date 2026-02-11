@@ -7,7 +7,6 @@ import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import WalletDetails from '@/components/wallet/WalletDetails';
 import { createPageUrl } from '@/utils';
-import PortfolioChart from '@/components/wallet/PortfolioChart';
 import QuickActions from '@/components/wallet/QuickActions';
 import TokenCard from '@/components/wallet/TokenCard';
 import PullToRefresh from '@/components/mobile/PullToRefresh';
