@@ -184,6 +184,43 @@ export const solanaService = {
   }
 };
 
+// Transaction sending functions
+export const sendBitcoinTransaction = async (privateKey, recipient, amount) => {
+  try {
+    // In production, use bitcoinjs-lib to sign and broadcast
+    // For now, return mock transaction hash
+    const txHash = `0x${Math.random().toString(16).slice(2)}`;
+    await bitcoinService.broadcastTransaction(txHash);
+    return txHash;
+  } catch (error) {
+    throw new Error(`Bitcoin transaction failed: ${error.message}`);
+  }
+};
+
+export const sendEthereumTransaction = async (privateKey, recipient, amount) => {
+  try {
+    // In production, use ethers.js to sign and broadcast
+    // For now, return mock transaction hash
+    const txHash = `0x${Math.random().toString(16).slice(2)}`;
+    await ethereumService.broadcastTransaction(txHash);
+    return txHash;
+  } catch (error) {
+    throw new Error(`Ethereum transaction failed: ${error.message}`);
+  }
+};
+
+export const sendSolanaTransaction = async (privateKey, recipient, amount) => {
+  try {
+    // In production, use @solana/web3.js to sign and broadcast
+    // For now, return mock transaction hash
+    const txHash = Math.random().toString(36).slice(2);
+    await solanaService.broadcastTransaction(txHash);
+    return txHash;
+  } catch (error) {
+    throw new Error(`Solana transaction failed: ${error.message}`);
+  }
+};
+
 // Get token contract addresses by network
 export const TOKEN_CONTRACTS = {
   // Ethereum
