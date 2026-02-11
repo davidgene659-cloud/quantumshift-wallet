@@ -45,6 +45,7 @@ export default function Portfolio() {
   const [showImport, setShowImport] = useState(false);
   const [showWalletDetails, setShowWalletDetails] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
+  const [showBitcoinSend, setShowBitcoinSend] = useState(false);
   const [selectedToken, setSelectedToken] = useState(null);
   const [sendAmount, setSendAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
@@ -136,12 +137,17 @@ export default function Portfolio() {
   };
 
   const openSendDialog = (token) => {
-    setSelectedToken(token);
-    // Use Bitcoin dialog for BTC, regular dialog for others
     if (token.symbol === 'BTC') {
-      setShowSendDialog(false);
-      // Will be handled by BitcoinSendDialog
+      // Find the actual wallet with BTC
+      const btcWallet = wallets.find(w => w.balances?.BTC);
+      if (btcWallet) {
+        setSelectedToken(token);
+        setShowBitcoinSend(true);
+      } else {
+        toast.error('No Bitcoin wallet found');
+      }
     } else {
+      setSelectedToken(token);
       setShowSendDialog(true);
     }
   };
@@ -361,22 +367,8 @@ export default function Portfolio() {
         </DialogContent>
       </Dialog>
 
-      {/* Bitcoin Send Dialog */}
-      {selectedToken?.symbol === 'BTC' && (
-        <BitcoinSendDialog
-          isOpen={true}
-          onClose={() => {
-            setSelectedToken(null);
-          }}
-          selectedToken={selectedToken}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ['wallets'] });
-          }}
-        />
-      )}
-
       {/* Send Token Dialog */}
-      <Dialog open={showSendDialog && selectedToken?.symbol !== 'BTC'} onOpenChange={setShowSendDialog}>
+      <Dialog open={showSendDialog} onOpenChange={setShowSendDialog}>
         <DialogContent className="bg-gray-900 border-white/20">
           <DialogHeader>
             <DialogTitle className="text-white">Send {selectedToken?.symbol}</DialogTitle>
@@ -444,6 +436,15 @@ export default function Portfolio() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Bitcoin Mainnet Send */}
+      {wallets[0] && (
+        <BitcoinSendDialog
+          isOpen={showBitcoinSend}
+          onClose={() => setShowBitcoinSend(false)}
+          wallet={wallets[0]}
+        />
+      )}
       </PullToRefresh>
       </motion.div>
       );
