@@ -143,18 +143,18 @@ export const getBalance = async (address, network) => {
 // Solana
 export const solanaService = {
   async getBalance(address) {
-    const response = await fetch('https://api.mainnet-beta.solana.com', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'getBalance',
-        params: [address],
-        id: 1
-      })
-    });
-    const data = await response.json();
-    return (data.result?.value || 0) / 1e9; // Convert lamports to SOL
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      const response = await base44.integrations.Core.InvokeLLM({
+        prompt: `Get the Solana balance for address ${address}. Use web search to find the current SOL balance. Return ONLY the number (e.g., 5.0, 0.5, etc)`,
+        add_context_from_internet: true
+      });
+      const balance = parseFloat(response);
+      return isNaN(balance) ? 0 : balance;
+    } catch (error) {
+      console.error('Failed to fetch SOL balance:', error);
+      return 0;
+    }
   },
 
   async broadcastTransaction(signedTxHex) {
