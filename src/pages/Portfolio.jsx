@@ -14,6 +14,9 @@ import PullToRefresh from '@/components/mobile/PullToRefresh';
 import PrivateKeyImport from '@/components/wallet/PrivateKeyImport';
 import WalletManager from '@/components/wallet/WalletManager';
 import TransactionHistory from '@/components/wallet/TransactionHistory';
+import AdvancedChart from '@/components/analytics/AdvancedChart';
+import PLTracker from '@/components/analytics/PLTracker';
+import TaxReport from '@/components/analytics/TaxReport';
 import AIChatbot from '@/components/chat/AIChatbot';
 import SecurityMonitor from '@/components/ai/SecurityMonitor';
 import PortfolioShield from '@/components/portfolio/PortfolioShield';
@@ -280,13 +283,22 @@ export default function Portfolio() {
                 </div>
             </motion.div>
 
-        {/* Portfolio Chart */}
+        {/* Advanced Chart */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <PortfolioChart totalValue={showBalance ? totalValue : 0} />
+          <AdvancedChart totalValue={totalValue} />
+        </motion.div>
+
+        {/* P&L Tracker */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+        >
+          <PLTracker wallets={wallets} />
         </motion.div>
 
         {/* Security Monitor */}
@@ -341,6 +353,15 @@ export default function Portfolio() {
           transition={{ delay: 0.27 }}
         >
           <TransactionHistory user={user} wallets={wallets} selectedWalletId={selectedWalletId} />
+        </motion.div>
+
+        {/* Tax Report */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.29 }}
+        >
+          <TaxReport user={user} />
         </motion.div>
 
         {/* Token Holdings */}
