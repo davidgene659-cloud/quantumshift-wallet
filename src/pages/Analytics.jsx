@@ -5,8 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, AlertTriangle, Target, Zap, Settings, Download, Plus, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import MobileSelect from '@/components/ui/mobile-select';
 import PortfolioPerformance from '@/components/analytics/PortfolioPerformance';
 import TradingStats from '@/components/analytics/TradingStats';
 import MiningMetrics from '@/components/analytics/MiningMetrics';
@@ -89,18 +89,19 @@ export default function Analytics() {
           </div>
           
           <div className="flex items-center gap-3">
-            <Select value={timeRange} onValueChange={setTimeRange}>
-              <SelectTrigger className="w-32 bg-white/5 border-white/10 text-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-white/10 text-white">
-                <SelectItem value="24h">24 Hours</SelectItem>
-                <SelectItem value="7d">7 Days</SelectItem>
-                <SelectItem value="30d">30 Days</SelectItem>
-                <SelectItem value="90d">90 Days</SelectItem>
-                <SelectItem value="1y">1 Year</SelectItem>
-              </SelectContent>
-            </Select>
+            <MobileSelect
+              value={timeRange}
+              onValueChange={setTimeRange}
+              options={[
+                { value: '24h', label: '24 Hours' },
+                { value: '7d', label: '7 Days' },
+                { value: '30d', label: '30 Days' },
+                { value: '90d', label: '90 Days' },
+                { value: '1y', label: '1 Year' }
+              ]}
+              placeholder="Time Range"
+              className="w-32"
+            />
             
             <Button
               onClick={exportData}

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Bell, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import MobileSelect from '@/components/ui/mobile-select';
 
 export default function PerformanceAlerts({ timeRange }) {
   const [alerts, setAlerts] = useState([
@@ -29,27 +29,23 @@ export default function PerformanceAlerts({ timeRange }) {
 
       {showAddForm && (
         <div className="mb-4 p-4 bg-white/5 rounded-xl space-y-3">
-          <Select>
-            <SelectTrigger className="bg-white/5 border-white/10 text-white">
-              <SelectValue placeholder="Select metric" />
-            </SelectTrigger>
-            <SelectContent className="bg-gray-900 border-white/10 text-white">
-              <SelectItem value="portfolio">Portfolio Value</SelectItem>
-              <SelectItem value="bot_profit">Bot Profit</SelectItem>
-              <SelectItem value="mining_hashrate">Mining Hashrate</SelectItem>
-            </SelectContent>
-          </Select>
+          <MobileSelect
+            options={[
+              { value: 'portfolio', label: 'Portfolio Value' },
+              { value: 'bot_profit', label: 'Bot Profit' },
+              { value: 'mining_hashrate', label: 'Mining Hashrate' }
+            ]}
+            placeholder="Select metric"
+          />
 
           <div className="flex gap-2">
-            <Select>
-              <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                <SelectValue placeholder="Condition" />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-white/10 text-white">
-                <SelectItem value="exceeds">Exceeds</SelectItem>
-                <SelectItem value="drops_below">Drops Below</SelectItem>
-              </SelectContent>
-            </Select>
+            <MobileSelect
+              options={[
+                { value: 'exceeds', label: 'Exceeds' },
+                { value: 'drops_below', label: 'Drops Below' }
+              ]}
+              placeholder="Condition"
+            />
             <Input
               placeholder="Value"
               className="bg-white/5 border-white/10 text-white"

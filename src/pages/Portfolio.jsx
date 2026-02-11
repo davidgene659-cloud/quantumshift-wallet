@@ -51,40 +51,40 @@ export default function Portfolio() {
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between"
-        >
-          <div>
-            <p className="text-white/50 text-sm">Welcome back,</p>
-            <h1 className="text-2xl font-bold text-white">{user?.full_name || 'Crypto Trader'}</h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setShowBalance(!showBalance)}
-              className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all"
-              style={{ minWidth: '44px', minHeight: '44px' }}
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center justify-between"
             >
-              {showBalance ? <Eye className="w-5 h-5 text-white/70" /> : <EyeOff className="w-5 h-5 text-white/70" />}
-            </button>
-            <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all relative" style={{ minWidth: '44px', minHeight: '44px' }}>
-              <Bell className="w-5 h-5 text-white/70" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
-            <button 
-              onClick={() => setShowImport(true)}
-              className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all" 
-              style={{ minWidth: '44px', minHeight: '44px' }}
-            >
-              <Download className="w-5 h-5 text-white/70" />
-            </button>
-            <Link to={createPageUrl('Settings')}>
-              <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all" style={{ minWidth: '44px', minHeight: '44px' }}>
-                <SettingsIcon className="w-5 h-5 text-white/70" />
-              </button>
-            </Link>
-            </div>
-        </motion.div>
+              <div>
+                <p className="text-white/50 text-sm select-none">Welcome back,</p>
+                <h1 className="text-2xl font-bold text-white select-none">{user?.full_name || 'Crypto Trader'}</h1>
+              </div>
+              <div className="flex items-center gap-3 select-none">
+                <button 
+                  onClick={() => setShowBalance(!showBalance)}
+                  className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none"
+                  style={{ minWidth: '44px', minHeight: '44px' }}
+                >
+                  {showBalance ? <Eye className="w-5 h-5 text-white/70" /> : <EyeOff className="w-5 h-5 text-white/70" />}
+                </button>
+                <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all relative select-none" style={{ minWidth: '44px', minHeight: '44px' }}>
+                  <Bell className="w-5 h-5 text-white/70" />
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
+                </button>
+                <button 
+                  onClick={() => setShowImport(true)}
+                  className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none" 
+                  style={{ minWidth: '44px', minHeight: '44px' }}
+                >
+                  <Download className="w-5 h-5 text-white/70" />
+                </button>
+                <Link to={createPageUrl('Settings')}>
+                  <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none" style={{ minWidth: '44px', minHeight: '44px' }}>
+                    <SettingsIcon className="w-5 h-5 text-white/70" />
+                  </button>
+                </Link>
+                </div>
+            </motion.div>
 
         {/* Portfolio Chart */}
         <motion.div

@@ -47,6 +47,7 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import Analytics from './pages/Analytics';
 import Banking from './pages/Banking';
 import Casinos from './pages/Casinos';
 import CloudMining from './pages/CloudMining';
@@ -54,17 +55,17 @@ import DApps from './pages/DApps';
 import Marketing from './pages/Marketing';
 import Poker from './pages/Poker';
 import Portfolio from './pages/Portfolio';
+import Privacy from './pages/Privacy';
 import Receive from './pages/Receive';
 import Send from './pages/Send';
+import Settings from './pages/Settings';
 import Swap from './pages/Swap';
 import TradingBots from './pages/TradingBots';
-import Settings from './pages/Settings';
-import Privacy from './pages/Privacy';
-import Analytics from './pages/Analytics';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "Analytics": Analytics,
     "Banking": Banking,
     "Casinos": Casinos,
     "CloudMining": CloudMining,
@@ -72,13 +73,12 @@ export const PAGES = {
     "Marketing": Marketing,
     "Poker": Poker,
     "Portfolio": Portfolio,
+    "Privacy": Privacy,
     "Receive": Receive,
     "Send": Send,
+    "Settings": Settings,
     "Swap": Swap,
     "TradingBots": TradingBots,
-    "Settings": Settings,
-    "Privacy": Privacy,
-    "Analytics": Analytics,
 }
 
 export const pagesConfig = {
