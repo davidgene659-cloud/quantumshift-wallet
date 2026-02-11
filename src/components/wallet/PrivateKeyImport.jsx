@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import { encryptPrivateKey, getBalance } from '@/components/blockchain/blockchainService';
 
 const networks = [
   { name: 'Bitcoin', symbol: 'BTC', color: 'from-orange-500 to-amber-500' },
@@ -40,28 +41,38 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
     setScanResults([]);
 
     try {
-      // Simulate scanning across networks
       const results = [];
       for (const key of keys) {
-        for (const network of selectedNetworks) {
-          // In production, this would actually derive addresses and check balances
-          const mockAddress = `0x${Math.random().toString(16).substr(2, 40)}`;
-          const mockBalance = Math.random() * 10;
-          
-          if (mockBalance > 0.01) {
-            results.push({
-              network,
-              address: mockAddress,
-              balance: mockBalance.toFixed(4),
-              key: key.substring(0, 10) + '...'
-            });
+        // For Ethereum-compatible chains, derive address from private key
+        // For now, user must provide address:key pairs like "0xAddress:0xPrivateKey"
+        const [address, privateKey] = key.includes(':') ? key.split(':') : [key, key];
+        
+        for (const networkSymbol of selectedNetworks) {
+          try {
+            // Fetch real balance from blockchain
+            const balance = await getBalance(address, networkSymbol);
+            
+            if (balance > 0.001) {
+              results.push({
+                network: networkSymbol,
+                address: address,
+                balance: balance.toFixed(6),
+                key: privateKey
+              });
+            }
+          } catch (error) {
+            console.error(`Failed to check ${networkSymbol} balance:`, error);
           }
         }
       }
 
       setScanResults(results);
+      if (results.length === 0) {
+        toast.info('No balances found on selected networks');
+      }
     } catch (error) {
       console.error('Scan failed:', error);
+      toast.error('Scan failed');
     } finally {
       setIsScanning(false);
     }
@@ -96,6 +107,12 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
         consolidatedWallets[result.network].addresses.push(result.address);
       });
 
+      // Encrypt private keys before storing
+      const firstResult = scanResults[0];
+      const encryptedKey = importType !== 'hardware' && firstResult?.key 
+        ? encryptPrivateKey(firstResult.key) 
+        : null;
+
       // Create one wallet per network with batching and delays
       const networks = Object.values(consolidatedWallets);
       let imported = 0;
@@ -109,7 +126,7 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
         const walletData = {
           user_id: user.id,
           wallet_name: `${network.network} Wallet`,
-          wallet_address: network.addresses[0], // Use first address
+          wallet_address: network.addresses[0],
           wallet_type: importType === 'hardware' ? 'hardware' : 'imported',
           balances: balances,
           total_usd_value: network.totalBalance * 100,
@@ -118,6 +135,8 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
 
         if (importType === 'hardware') {
           walletData.hardware_device = 'Ledger Nano X';
+        } else if (encryptedKey) {
+          walletData.encrypted_private_key = encryptedKey;
         }
 
         await base44.entities.Wallet.create(walletData);
@@ -219,7 +238,7 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
               <Textarea
                 value={privateKeys}
                 onChange={(e) => setPrivateKeys(e.target.value)}
-                placeholder="0x1234567890abcdef...&#10;0xfedcba0987654321...&#10;..."
+                placeholder="Format: address:privatekey (one per line)&#10;0x1234...abcd:0xkey1234...&#10;0x5678...efgh:0xkey5678..."
                 className="bg-white/5 border-white/10 text-white font-mono text-sm h-32"
               />
               <p className="text-white/50 text-xs mt-2">
