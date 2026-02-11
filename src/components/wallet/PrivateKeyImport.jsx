@@ -17,11 +17,12 @@ const networks = [
   { name: 'Solana', symbol: 'SOL', color: 'from-green-500 to-teal-500' },
 ];
 
-export default function PrivateKeyImport({ isOpen, onClose, onImport }) {
+export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
   const [privateKeys, setPrivateKeys] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [scanResults, setScanResults] = useState([]);
   const [selectedNetworks, setSelectedNetworks] = useState(networks.map(n => n.symbol));
+  const [importType, setImportType] = useState('private_key'); // private_key, hardware
 
   const toggleNetwork = (symbol) => {
     setSelectedNetworks(prev => 
@@ -64,11 +65,55 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport }) {
     }
   };
 
-  const handleImport = () => {
-    onImport(scanResults);
-    setPrivateKeys('');
+  const handleImport = async () => {
+    if (!user) {
+      alert('Please log in first');
+      return;
+    }
+
+    try {
+      // Create wallet records in database
+      for (const result of scanResults) {
+        const balances = {};
+        balances[result.network] = parseFloat(result.balance);
+
+        await base44.entities.Wallet.create({
+          user_id: user.id,
+          wallet_name: `${result.network} Wallet`,
+          wallet_address: result.address,
+          wallet_type: importType === 'hardware' ? 'hardware' : 'imported',
+          hardware_device: importType === 'hardware' ? 'Ledger Nano X' : undefined,
+          balances: balances,
+          total_usd_value: parseFloat(result.balance) * 100, // Mock calculation
+          networks: [result.network]
+        });
+      }
+
+      onImport?.(scanResults);
+      setPrivateKeys('');
+      setScanResults([]);
+      setImportType('private_key');
+      onClose();
+    } catch (error) {
+      console.error('Import failed:', error);
+      alert('Failed to import wallets. Please try again.');
+    }
+  };
+
+  const connectHardwareWallet = async () => {
+    setIsScanning(true);
     setScanResults([]);
-    onClose();
+
+    // Simulate hardware wallet connection
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const mockHardwareWallets = [
+      { network: 'BTC', address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa', balance: (Math.random() * 2).toFixed(4) },
+      { network: 'ETH', address: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb', balance: (Math.random() * 5).toFixed(4) },
+    ];
+
+    setScanResults(mockHardwareWallets.filter(w => parseFloat(w.balance) > 0.01));
+    setIsScanning(false);
   };
 
   return (
@@ -82,32 +127,88 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport }) {
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
+          {/* Import Type Selection */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setImportType('private_key')}
+              className={`p-4 rounded-xl border transition-all ${
+                importType === 'private_key'
+                  ? 'bg-gradient-to-br from-purple-500 to-pink-500 border-white/20'
+                  : 'bg-white/5 border-white/10 hover:bg-white/10'
+              }`}
+            >
+              <Key className="w-6 h-6 text-white mx-auto mb-2" />
+              <p className="text-white text-sm font-medium">Private Key</p>
+            </button>
+            <button
+              onClick={() => setImportType('hardware')}
+              className={`p-4 rounded-xl border transition-all ${
+                importType === 'hardware'
+                  ? 'bg-gradient-to-br from-purple-500 to-pink-500 border-white/20'
+                  : 'bg-white/5 border-white/10 hover:bg-white/10'
+              }`}
+            >
+              <Upload className="w-6 h-6 text-white mx-auto mb-2" />
+              <p className="text-white text-sm font-medium">Hardware Wallet</p>
+            </button>
+          </div>
+
           {/* Warning */}
           <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
             <div>
               <p className="text-red-400 font-semibold text-sm">Security Warning</p>
               <p className="text-white/70 text-xs mt-1">
-                Never share your private keys. Only import keys you own. Keys are encrypted locally.
+                {importType === 'hardware' 
+                  ? 'Make sure to connect only trusted hardware wallets. Follow device instructions carefully.'
+                  : 'Never share your private keys. Only import keys you own. Keys are encrypted locally.'
+                }
               </p>
             </div>
           </div>
 
-          {/* Private Keys Input */}
-          <div>
-            <label className="text-white/70 text-sm mb-2 block">
-              Private Keys (one per line)
-            </label>
-            <Textarea
-              value={privateKeys}
-              onChange={(e) => setPrivateKeys(e.target.value)}
-              placeholder="0x1234567890abcdef...&#10;0xfedcba0987654321...&#10;..."
-              className="bg-white/5 border-white/10 text-white font-mono text-sm h-32"
-            />
-            <p className="text-white/50 text-xs mt-2">
-              {privateKeys.split('\n').filter(k => k.trim()).length} keys entered
-            </p>
-          </div>
+          {/* Private Keys Input or Hardware Connect */}
+          {importType === 'private_key' ? (
+            <div>
+              <label className="text-white/70 text-sm mb-2 block">
+                Private Keys (one per line)
+              </label>
+              <Textarea
+                value={privateKeys}
+                onChange={(e) => setPrivateKeys(e.target.value)}
+                placeholder="0x1234567890abcdef...&#10;0xfedcba0987654321...&#10;..."
+                className="bg-white/5 border-white/10 text-white font-mono text-sm h-32"
+              />
+              <p className="text-white/50 text-xs mt-2">
+                {privateKeys.split('\n').filter(k => k.trim()).length} keys entered
+              </p>
+            </div>
+          ) : (
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-6 text-center">
+              <Upload className="w-12 h-12 text-blue-400 mx-auto mb-3" />
+              <h4 className="text-white font-semibold mb-2">Connect Hardware Wallet</h4>
+              <p className="text-white/70 text-sm mb-4">
+                Supports Ledger, Trezor, and other hardware wallets. Make sure your device is connected.
+              </p>
+              <Button
+                onClick={connectHardwareWallet}
+                disabled={isScanning}
+                className="bg-gradient-to-r from-blue-500 to-cyan-500"
+              >
+                {isScanning ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Connect Device
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
 
           {/* Network Selection */}
           <div>
@@ -133,23 +234,25 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport }) {
           </div>
 
           {/* Scan Button */}
-          <Button
-            onClick={scanPrivateKeys}
-            disabled={isScanning || privateKeys.trim().length === 0 || selectedNetworks.length === 0}
-            className="w-full bg-gradient-to-r from-purple-500 to-pink-500"
-          >
-            {isScanning ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Scanning {selectedNetworks.length} Networks...
-              </>
-            ) : (
-              <>
-                <Upload className="w-4 h-4 mr-2" />
-                Scan & Import
-              </>
-            )}
-          </Button>
+          {importType === 'private_key' && (
+            <Button
+              onClick={scanPrivateKeys}
+              disabled={isScanning || privateKeys.trim().length === 0 || selectedNetworks.length === 0}
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500"
+            >
+              {isScanning ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Scanning {selectedNetworks.length} Networks...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Scan & Import
+                </>
+              )}
+            </Button>
+          )}
 
           {/* Scan Results */}
           {scanResults.length > 0 && (

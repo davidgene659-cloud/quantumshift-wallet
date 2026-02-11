@@ -12,6 +12,8 @@ import QuickActions from '@/components/wallet/QuickActions';
 import TokenCard from '@/components/wallet/TokenCard';
 import PullToRefresh from '@/components/mobile/PullToRefresh';
 import PrivateKeyImport from '@/components/wallet/PrivateKeyImport';
+import WalletManager from '@/components/wallet/WalletManager';
+import TransactionHistory from '@/components/wallet/TransactionHistory';
 import AIChatbot from '@/components/chat/AIChatbot';
 import SecurityMonitor from '@/components/ai/SecurityMonitor';
 import PortfolioShield from '@/components/portfolio/PortfolioShield';
@@ -44,9 +46,12 @@ export default function Portfolio() {
   const [showImport, setShowImport] = useState(false);
   const [showWalletDetails, setShowWalletDetails] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
+  const [showReceiveDialog, setShowReceiveDialog] = useState(false);
   const [selectedToken, setSelectedToken] = useState(null);
   const [sendAmount, setSendAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
+  const [receiveAmount, setReceiveAmount] = useState('');
+  const [selectedWalletId, setSelectedWalletId] = useState(null);
   const [user, setUser] = useState(null);
 
   const queryClient = useQueryClient();
@@ -60,13 +65,20 @@ export default function Portfolio() {
     queryKey: ['wallets', user?.email],
     queryFn: async () => {
       if (!user) return [];
-      const result = await base44.entities.Wallet.filter({ user_id: user.id });
+      const result = await base44.entities.Wallet.filter({ user_id: user.id }, '-created_date');
+      // Set primary wallet as selected by default
+      const primaryWallet = result.find(w => w.is_primary);
+      if (primaryWallet && !selectedWalletId) {
+        setSelectedWalletId(primaryWallet.id);
+      } else if (result.length > 0 && !selectedWalletId) {
+        setSelectedWalletId(result[0].id);
+      }
       return result;
     },
     enabled: !!user,
   });
 
-  const currentWallet = wallets[0];
+  const currentWallet = wallets.find(w => w.id === selectedWalletId) || wallets[0];
   const balances = currentWallet?.balances || {};
 
   // Convert balances to token array
@@ -78,6 +90,49 @@ export default function Portfolio() {
   }));
 
   const totalValue = tokens.reduce((acc, t) => acc + (t.balance * t.price), 0);
+
+  // Receive transaction mutation
+  const receiveMutation = useMutation({
+    mutationFn: async ({ token, amount }) => {
+      if (!currentWallet) throw new Error('No wallet found');
+      
+      const currentBalance = parseFloat(balances[token] || 0);
+      const newBalance = currentBalance + amount;
+
+      // Update wallet balance
+      await base44.entities.Wallet.update(currentWallet.id, {
+        balances: {
+          ...balances,
+          [token]: newBalance
+        },
+        total_usd_value: totalValue + (amount * tokenPrices[token])
+      });
+
+      // Record transaction
+      await base44.entities.Transaction.create({
+        user_id: user.id,
+        type: 'deposit',
+        from_token: token,
+        from_amount: amount,
+        to_token: token,
+        to_amount: amount,
+        fee: 0,
+        status: 'completed',
+        usd_value: amount * tokenPrices[token]
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wallets'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      toast.success('Funds received successfully');
+      setShowReceiveDialog(false);
+      setReceiveAmount('');
+      setSelectedToken(null);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Transaction failed');
+    }
+  });
 
   // Send transaction mutation
   const sendMutation = useMutation({
@@ -111,6 +166,7 @@ export default function Portfolio() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wallets'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
       toast.success('Transaction sent successfully');
       setShowSendDialog(false);
       setSendAmount('');
@@ -137,6 +193,22 @@ export default function Portfolio() {
   const openSendDialog = (token) => {
     setSelectedToken(token);
     setShowSendDialog(true);
+  };
+
+  const openReceiveDialog = (token) => {
+    setSelectedToken(token);
+    setShowReceiveDialog(true);
+  };
+
+  const handleReceive = () => {
+    if (!selectedToken || !receiveAmount) {
+      toast.error('Please enter an amount');
+      return;
+    }
+    receiveMutation.mutate({
+      token: selectedToken.symbol,
+      amount: parseFloat(receiveAmount)
+    });
   };
 
   const handleRefresh = async () => {
@@ -167,6 +239,13 @@ export default function Portfolio() {
                 <h1 className="text-2xl font-bold text-white select-none">{user?.full_name || 'Crypto Trader'}</h1>
               </div>
               <div className="flex items-center gap-3 select-none">
+                <WalletManager
+                  wallets={wallets}
+                  user={user}
+                  selectedWalletId={selectedWalletId}
+                  onSelectWallet={setSelectedWalletId}
+                  onAddWallet={() => setShowImport(true)}
+                />
                 <button 
                   onClick={() => setShowBalance(!showBalance)}
                   className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none"
@@ -255,6 +334,15 @@ export default function Portfolio() {
           <RewardsSystem />
         </motion.div>
 
+        {/* Transaction History */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.27 }}
+        >
+          <TransactionHistory user={user} wallets={wallets} selectedWalletId={selectedWalletId} />
+        </motion.div>
+
         {/* Token Holdings */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -314,8 +402,10 @@ export default function Portfolio() {
       <PrivateKeyImport
         isOpen={showImport}
         onClose={() => setShowImport(false)}
-        onImport={(wallets) => {
-          console.log('Imported wallets:', wallets);
+        user={user}
+        onImport={() => {
+          queryClient.invalidateQueries({ queryKey: ['wallets'] });
+          toast.success('Wallets imported successfully');
         }}
       />
 
@@ -338,6 +428,14 @@ export default function Portfolio() {
             <DialogTitle className="text-white">Send {selectedToken?.symbol}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-4">
+            <div>
+              <Label className="text-white/70">From Wallet</Label>
+              <p className="text-white/90 text-sm mt-1">{currentWallet?.wallet_name}</p>
+              <p className="text-white/50 text-xs font-mono">
+                {currentWallet?.wallet_address?.slice(0, 10)}...{currentWallet?.wallet_address?.slice(-8)}
+              </p>
+            </div>
+
             <div>
               <Label className="text-white/70">Available Balance</Label>
               <p className="text-2xl font-bold text-white mt-1">
@@ -396,6 +494,57 @@ export default function Portfolio() {
               style={{ minHeight: '44px' }}
             >
               {sendMutation.isPending ? 'Sending...' : 'Send Transaction'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Receive Token Dialog */}
+      <Dialog open={showReceiveDialog} onOpenChange={setShowReceiveDialog}>
+        <DialogContent className="bg-gray-900 border-white/20">
+          <DialogHeader>
+            <DialogTitle className="text-white">Receive {selectedToken?.symbol}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label className="text-white/70">To Wallet</Label>
+              <p className="text-white/90 text-sm mt-1">{currentWallet?.wallet_name}</p>
+              <div className="bg-white/5 border border-white/10 rounded-lg p-3 mt-2">
+                <p className="text-white text-xs font-mono break-all">
+                  {currentWallet?.wallet_address}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-white/70">Amount to Receive</Label>
+              <Input
+                type="number"
+                value={receiveAmount}
+                onChange={(e) => setReceiveAmount(e.target.value)}
+                placeholder="0.00"
+                className="bg-white/5 border-white/10 text-white mt-2"
+              />
+              {receiveAmount && (
+                <p className="text-white/50 text-sm mt-1">
+                  ≈ ${(parseFloat(receiveAmount || 0) * selectedToken?.price).toFixed(2)}
+                </p>
+              )}
+            </div>
+
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+              <p className="text-blue-400 text-sm">
+                Send {selectedToken?.symbol} to the address above. This is a simulation for testing.
+              </p>
+            </div>
+
+            <Button
+              onClick={handleReceive}
+              disabled={receiveMutation.isPending || !receiveAmount}
+              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500"
+              style={{ minHeight: '44px' }}
+            >
+              {receiveMutation.isPending ? 'Processing...' : 'Confirm Receipt'}
             </Button>
           </div>
         </DialogContent>
