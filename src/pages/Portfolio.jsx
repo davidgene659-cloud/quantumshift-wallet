@@ -22,6 +22,7 @@ import SecurityMonitor from '@/components/ai/SecurityMonitor';
 import PortfolioShield from '@/components/portfolio/PortfolioShield';
 import RewardsSystem from '@/components/gamification/RewardsSystem';
 import SponsorBanner from '@/components/sponsors/SponsorBanner';
+import { notificationManager } from '@/components/notifications/NotificationManager';
 import { Download, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,7 +60,7 @@ export default function Portfolio() {
 
   const queryClient = useQueryClient();
 
-  // Fetch real-time prices on mount
+  // Fetch real-time prices and check notifications
   useEffect(() => {
     const fetchPrices = async () => {
       const prices = await priceOracle.getPrices();
@@ -68,17 +69,41 @@ export default function Portfolio() {
         formattedPrices[symbol] = data.current;
       });
       setTokenPrices(formattedPrices);
+
+      // Check for price movements and trigger notifications
+      if (user && Object.keys(tokenPrices).length > 0) {
+        try {
+          const preferences = await base44.entities.NotificationPreference.filter({ user_id: user.id });
+          await notificationManager.checkPriceMovement(formattedPrices, tokenPrices, user, preferences);
+        } catch (e) {
+          // Silently fail if preferences don't exist
+        }
+      }
     };
 
     fetchPrices();
     const interval = setInterval(fetchPrices, 60000); // Update every minute
 
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
+
+  // Fetch notification preferences
+  const { data: notificationPreferences = [] } = useQuery({
+    queryKey: ['notificationPreferences', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      try {
+        return await base44.entities.NotificationPreference.filter({ user_id: user.id });
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!user
+  });
 
   // Fetch wallet data
   const { data: wallets = [], isLoading } = useQuery({
@@ -129,7 +154,7 @@ export default function Portfolio() {
     }
   });
 
-  // Send transaction mutation
+  // Send transaction mutation with notification trigger
   const sendMutation = useMutation({
     mutationFn: async ({ token, amount, recipient, walletType, network = 'ethereum' }) => {
       if (!currentWallet) throw new Error('No wallet found');
@@ -167,7 +192,7 @@ export default function Portfolio() {
         });
 
         // Record transaction
-        await base44.entities.Transaction.create({
+        const transaction = await base44.entities.Transaction.create({
           user_id: user.id,
           type: 'transfer_out',
           from_token: token,
@@ -180,6 +205,11 @@ export default function Portfolio() {
           tx_hash: txHash,
           network: network
         });
+
+        // Trigger transaction notification
+        if (notificationPreferences.length > 0) {
+          await notificationManager.checkTransactionStatus([transaction], user, notificationPreferences);
+        }
 
         return txHash;
       } catch (error) {
