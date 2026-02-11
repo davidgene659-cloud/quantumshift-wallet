@@ -52,7 +52,7 @@ const scanPrivateKeys = async () => {
               key: cleanKey.substring(0, 10) + '...' // Truncated for display
             });
           }
-        } catch (err) {
+        } catch (err) {SyntaxError: The requested module 'https://preview-sandbox--605191f82d64422d55963850e448cdfe.base44.app/src/components/wallet/PrivateKeyImport.jsx?t=1770836783335' doesn't provide an export named: 'default'
           // RPC failed or rate limited, skip this network for this key
           console.error(`Failed to check ${network} for ${address}:`, err.message);
         }
@@ -61,12 +61,12 @@ const scanPrivateKeys = async () => {
       // Solana requires a different library (solana-web3.js) 
       // and Ed25519 key derivation. Logic omitted for brevity 
       // as it requires separate imports.
-    }
+    // ... all your existing code (imports, logic, return statement)
 
-    setScanResults(results);
-  } catch (error) {
-    console.error('Scan failed:', error);
-  } finally {
-    setIsScanning(false);
-  }
-};
+// CHANGE THIS LINE:
+// export default function PrivateKeyImport({ isOpen, onClose, onImport }) {
+
+// TO THIS:
+export const PrivateKeyImport = ({ isOpen, onClose, onImport }) => {
+  // ... rest of your component code
+}
