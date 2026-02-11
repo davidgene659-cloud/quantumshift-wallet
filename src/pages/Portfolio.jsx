@@ -11,6 +11,8 @@ import TokenCard from '@/components/wallet/TokenCard';
 import PullToRefresh from '@/components/mobile/PullToRefresh';
 import PrivateKeyImport from '@/components/wallet/PrivateKeyImport';
 import AIChatbot from '@/components/chat/AIChatbot';
+import SecurityMonitor from '@/components/ai/SecurityMonitor';
+import PortfolioShield from '@/components/portfolio/PortfolioShield';
 import { Download } from 'lucide-react';
 
 const mockTokens = [
@@ -94,6 +96,24 @@ export default function Portfolio() {
           transition={{ delay: 0.1 }}
         >
           <PortfolioChart totalValue={showBalance ? totalValue : 0} />
+        </motion.div>
+
+        {/* Security Monitor */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
+          <SecurityMonitor />
+        </motion.div>
+
+        {/* Portfolio Shield */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.18 }}
+        >
+          <PortfolioShield />
         </motion.div>
 
         {/* Quick Actions */}

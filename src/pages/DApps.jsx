@@ -9,18 +9,19 @@ import AIChatbot from '@/components/chat/AIChatbot';
 import DeFiInsurance from '@/components/dapps/DeFiInsurance';
 import PredictionMarkets from '@/components/dapps/PredictionMarkets';
 import CrossChainBridges from '@/components/dapps/CrossChainBridges';
+import TrustScore from '@/components/ai/TrustScore';
 
 const dapps = [
-  { name: 'Uniswap', category: 'DEX', icon: '🦄', description: 'Leading decentralized exchange with V3 concentrated liquidity', url: 'https://app.uniswap.org', color: 'from-pink-500 to-rose-500', tvl: '$4.2B', features: ['Swap', 'Liquidity', 'V3 Pools'] },
-  { name: 'Aave', category: 'Lending', icon: '👻', description: 'Decentralized lending with flash loans and stable rates', url: 'https://app.aave.com', color: 'from-purple-500 to-indigo-500', tvl: '$10.5B', features: ['Lend', 'Borrow', 'Flash Loans'] },
-  { name: 'Curve', category: 'DEX', icon: '🌀', description: 'Low-slippage stablecoin exchange with yield farming', url: 'https://curve.fi', color: 'from-blue-500 to-cyan-500', tvl: '$3.8B', features: ['Swap', 'Pools', 'Gauges'] },
-  { name: 'Lido', category: 'Staking', icon: '🔱', description: 'Liquid staking for ETH, get stETH while staking', url: 'https://lido.fi', color: 'from-teal-500 to-emerald-500', tvl: '$22.1B', features: ['Stake', 'Unstake', 'Rewards'] },
-  { name: 'MakerDAO', category: 'Stablecoin', icon: '🏦', description: 'Mint DAI stablecoin by locking collateral in vaults', url: 'https://makerdao.com', color: 'from-green-500 to-lime-500', tvl: '$5.7B', features: ['Mint DAI', 'Vaults', 'Savings'] },
-  { name: 'Compound', category: 'Lending', icon: '⚡', description: 'Algorithmic money market with COMP rewards', url: 'https://app.compound.finance', color: 'from-emerald-500 to-teal-500', tvl: '$2.9B', features: ['Supply', 'Borrow', 'COMP Earn'] },
-  { name: 'PancakeSwap', category: 'DEX', icon: '🥞', description: 'BSC DEX with farms, pools, and lottery', url: 'https://pancakeswap.finance', color: 'from-amber-500 to-orange-500', tvl: '$1.8B', features: ['Swap', 'Farm', 'Lottery'] },
-  { name: '1inch', category: 'Aggregator', icon: '🔄', description: 'Best rates across DEXs with limit orders', url: 'https://app.1inch.io', color: 'from-red-500 to-pink-500', tvl: '$500M+', features: ['Swap', 'Limit Orders', 'Best Price'] },
-  { name: 'Yearn Finance', category: 'Yield', icon: '💰', description: 'Automated yield optimization across DeFi protocols', url: 'https://yearn.finance', color: 'from-blue-500 to-indigo-500', tvl: '$350M', features: ['Vaults', 'Auto-compound', 'Strategies'] },
-  { name: 'Convex', category: 'Yield', icon: '🎯', description: 'Boost Curve yields with CVX rewards', url: 'https://convexfinance.com', color: 'from-cyan-500 to-blue-500', tvl: '$2.1B', features: ['Stake CRV', 'Boost APR', 'Rewards'] },
+  { name: 'Uniswap', category: 'DEX', icon: '🦄', description: 'Leading decentralized exchange with V3 concentrated liquidity', url: 'https://app.uniswap.org', color: 'from-pink-500 to-rose-500', tvl: '$4.2B', features: ['Swap', 'Liquidity', 'V3 Pools'], trustScore: 95 },
+  { name: 'Aave', category: 'Lending', icon: '👻', description: 'Decentralized lending with flash loans and stable rates', url: 'https://app.aave.com', color: 'from-purple-500 to-indigo-500', tvl: '$10.5B', features: ['Lend', 'Borrow', 'Flash Loans'], trustScore: 92 },
+  { name: 'Curve', category: 'DEX', icon: '🌀', description: 'Low-slippage stablecoin exchange with yield farming', url: 'https://curve.fi', color: 'from-blue-500 to-cyan-500', tvl: '$3.8B', features: ['Swap', 'Pools', 'Gauges'], trustScore: 90 },
+  { name: 'Lido', category: 'Staking', icon: '🔱', description: 'Liquid staking for ETH, get stETH while staking', url: 'https://lido.fi', color: 'from-teal-500 to-emerald-500', tvl: '$22.1B', features: ['Stake', 'Unstake', 'Rewards'], trustScore: 93 },
+  { name: 'MakerDAO', category: 'Stablecoin', icon: '🏦', description: 'Mint DAI stablecoin by locking collateral in vaults', url: 'https://makerdao.com', color: 'from-green-500 to-lime-500', tvl: '$5.7B', features: ['Mint DAI', 'Vaults', 'Savings'], trustScore: 94 },
+  { name: 'Compound', category: 'Lending', icon: '⚡', description: 'Algorithmic money market with COMP rewards', url: 'https://app.compound.finance', color: 'from-emerald-500 to-teal-500', tvl: '$2.9B', features: ['Supply', 'Borrow', 'COMP Earn'], trustScore: 88 },
+  { name: 'PancakeSwap', category: 'DEX', icon: '🥞', description: 'BSC DEX with farms, pools, and lottery', url: 'https://pancakeswap.finance', color: 'from-amber-500 to-orange-500', tvl: '$1.8B', features: ['Swap', 'Farm', 'Lottery'], trustScore: 82 },
+  { name: '1inch', category: 'Aggregator', icon: '🔄', description: 'Best rates across DEXs with limit orders', url: 'https://app.1inch.io', color: 'from-red-500 to-pink-500', tvl: '$500M+', features: ['Swap', 'Limit Orders', 'Best Price'], trustScore: 86 },
+  { name: 'Yearn Finance', category: 'Yield', icon: '💰', description: 'Automated yield optimization across DeFi protocols', url: 'https://yearn.finance', color: 'from-blue-500 to-indigo-500', tvl: '$350M', features: ['Vaults', 'Auto-compound', 'Strategies'], trustScore: 85 },
+  { name: 'Convex', category: 'Yield', icon: '🎯', description: 'Boost Curve yields with CVX rewards', url: 'https://convexfinance.com', color: 'from-cyan-500 to-blue-500', tvl: '$2.1B', features: ['Stake CRV', 'Boost APR', 'Rewards'], trustScore: 81 },
 ];
 
 const categories = ['All', 'DEX', 'Lending', 'Staking', 'Yield', 'Insurance', 'Prediction', 'Bridges', 'Stablecoin', 'Aggregator'];
@@ -180,6 +181,10 @@ export default function DApps() {
                 <ExternalLink className="w-4 h-4 text-white/30 group-hover:text-purple-400 transition-colors" />
               </div>
 
+              <div className="mb-3">
+                <TrustScore score={dapp.trustScore} size="sm" />
+              </div>
+              
               <p className="text-white/70 text-sm mb-3">{dapp.description}</p>
 
               {dapp.features && (
