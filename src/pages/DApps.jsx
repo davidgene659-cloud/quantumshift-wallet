@@ -1,15 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ExternalLink, TrendingUp, Shield as ShieldIcon, Coins, Repeat, Shield } from 'lucide-react';
+import { ArrowLeft, ExternalLink, TrendingUp, Shield as ShieldIcon, Coins, Repeat, Shield, Search, Star, Filter } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import DIDManager from '@/components/identity/DIDManager';
 import AIChatbot from '@/components/chat/AIChatbot';
 import DeFiInsurance from '@/components/dapps/DeFiInsurance';
 import PredictionMarkets from '@/components/dapps/PredictionMarkets';
 import CrossChainBridges from '@/components/dapps/CrossChainBridges';
-import TrustScore from '@/components/ai/TrustScore';
+import SecurityRating from '@/components/dapps/SecurityRating';
+import { base44 } from '@/api/base44Client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 const dapps = [
   { name: 'Uniswap', category: 'DEX', icon: '🦄', description: 'Leading decentralized exchange with V3 concentrated liquidity', url: 'https://app.uniswap.org', color: 'from-pink-500 to-rose-500', tvl: '$4.2B', features: ['Swap', 'Liquidity', 'V3 Pools'], trustScore: 95 },
@@ -29,10 +33,83 @@ const categories = ['All', 'DEX', 'Lending', 'Staking', 'Yield', 'Insurance', 'P
 export default function DApps() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [showDID, setShowDID] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('trustScore'); // trustScore, tvl, name
+  const [user, setUser] = useState(null);
 
-  const filteredDapps = activeCategory === 'All' 
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
+  }, []);
+
+  // Fetch favorites
+  const { data: favorites = [] } = useQuery({
+    queryKey: ['favorites', user?.email],
+    queryFn: async () => {
+      if (!user) return [];
+      return await base44.entities.FavoriteDApp.filter({ created_by: user.email });
+    },
+    enabled: !!user,
+  });
+
+  const favoriteNames = favorites.map(f => f.dapp_name);
+
+  // Toggle favorite mutation
+  const toggleFavoriteMutation = useMutation({
+    mutationFn: async (dappName) => {
+      const existing = favorites.find(f => f.dapp_name === dappName);
+      if (existing) {
+        await base44.entities.FavoriteDApp.delete(existing.id);
+      } else {
+        const dapp = dapps.find(d => d.name === dappName);
+        await base44.entities.FavoriteDApp.create({
+          dapp_name: dappName,
+          dapp_category: dapp.category,
+          added_date: new Date().toISOString()
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['favorites'] });
+      toast.success('Favorites updated');
+    }
+  });
+
+  const handleToggleFavorite = (e, dappName) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) {
+      toast.error('Please log in to save favorites');
+      return;
+    }
+    toggleFavoriteMutation.mutate(dappName);
+  };
+
+  // Filter and sort DApps
+  let filteredDapps = activeCategory === 'All' 
     ? dapps 
     : dapps.filter(d => d.category === activeCategory);
+
+  if (searchQuery) {
+    filteredDapps = filteredDapps.filter(d => 
+      d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.category.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }
+
+  // Sort DApps
+  filteredDapps = [...filteredDapps].sort((a, b) => {
+    if (sortBy === 'trustScore') return b.trustScore - a.trustScore;
+    if (sortBy === 'name') return a.name.localeCompare(b.name);
+    if (sortBy === 'tvl') {
+      const aVal = parseFloat(a.tvl.replace(/[^0-9.]/g, ''));
+      const bVal = parseFloat(b.tvl.replace(/[^0-9.]/g, ''));
+      return bVal - aVal;
+    }
+    return 0;
+  });
 
   return (
     <motion.div 
@@ -93,26 +170,53 @@ export default function DApps() {
           ))}
         </motion.div>
 
-        {/* Category Filter */}
+        {/* Search and Filters */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="flex gap-2 overflow-x-auto pb-2"
+          className="space-y-4"
         >
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-                activeCategory === cat
-                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                  : 'bg-white/5 text-white/70 hover:bg-white/10'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/50" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search DApps..."
+                className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-white/30"
+              />
+            </div>
+            <div className="flex gap-2">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-sm"
+              >
+                <option value="trustScore">Trust Score</option>
+                <option value="tvl">TVL</option>
+                <option value="name">Name</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Category Pills */}
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+                  activeCategory === cat
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                    : 'bg-white/5 text-white/70 hover:bg-white/10'
+                }`}
+                style={{ minHeight: '44px' }}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         </motion.div>
 
         {/* Emerging DeFi Sections */}
@@ -178,11 +282,26 @@ export default function DApps() {
                     <span className="text-white/50 text-xs">{dapp.category}</span>
                   </div>
                 </div>
-                <ExternalLink className="w-4 h-4 text-white/30 group-hover:text-purple-400 transition-colors" />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => handleToggleFavorite(e, dapp.name)}
+                    className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                    style={{ minHeight: '44px', minWidth: '44px' }}
+                  >
+                    <Star 
+                      className={`w-5 h-5 transition-colors ${
+                        favoriteNames.includes(dapp.name) 
+                          ? 'fill-yellow-400 text-yellow-400' 
+                          : 'text-white/30'
+                      }`} 
+                    />
+                  </button>
+                  <ExternalLink className="w-4 h-4 text-white/30 group-hover:text-purple-400 transition-colors" />
+                </div>
               </div>
 
               <div className="mb-3">
-                <TrustScore score={dapp.trustScore} size="sm" />
+                <SecurityRating dapp={dapp} />
               </div>
               
               <p className="text-white/70 text-sm mb-3">{dapp.description}</p>
