@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
-import { encryptPrivateKey, getBalance } from '@/components/blockchain/blockchainService';
+import { encryptPrivateKey, getBalance, bitcoinService, ethereumService, solanaService } from '@/components/blockchain/blockchainService';
 
 const networks = [
   { name: 'Bitcoin', symbol: 'BTC', color: 'from-orange-500 to-amber-500' },
