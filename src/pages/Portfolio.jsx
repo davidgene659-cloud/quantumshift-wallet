@@ -16,6 +16,7 @@ import TransactionHistory from '@/components/wallet/TransactionHistory';
 import AdvancedChart from '@/components/analytics/AdvancedChart';
 import PLTracker from '@/components/analytics/PLTracker';
 import TaxReport from '@/components/analytics/TaxReport';
+import LastTransactionDetails from '@/components/wallet/LastTransactionDetails';
 import AIChatbot from '@/components/chat/AIChatbot';
 import SecurityMonitor from '@/components/ai/SecurityMonitor';
 import PortfolioShield from '@/components/portfolio/PortfolioShield';
@@ -343,6 +344,15 @@ export default function Portfolio() {
           transition={{ delay: 0.25 }}
         >
           <RewardsSystem />
+        </motion.div>
+
+        {/* Last Transaction Details */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.26 }}
+        >
+          <LastTransactionDetails user={user} />
         </motion.div>
 
         {/* Transaction History */}
