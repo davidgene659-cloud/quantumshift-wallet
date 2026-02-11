@@ -52,21 +52,21 @@ import Analytics from './pages/Analytics';
 import Banking from './pages/Banking';
 import Casinos from './pages/Casinos';
 import CloudMining from './pages/CloudMining';
+import DApps from './pages/DApps';
 import DeFiStrategies from './pages/DeFiStrategies';
 import Education from './pages/Education';
 import Legacy from './pages/Legacy';
 import Marketing from './pages/Marketing';
 import NFTs from './pages/NFTs';
 import Poker from './pages/Poker';
+import Portfolio from './pages/Portfolio';
 import Privacy from './pages/Privacy';
 import Receive from './pages/Receive';
+import Send from './pages/Send';
 import Settings from './pages/Settings';
 import Swap from './pages/Swap';
 import TradingBots from './pages/TradingBots';
 import VirtualCard from './pages/VirtualCard';
-import Send from './pages/Send';
-import Portfolio from './pages/Portfolio';
-import DApps from './pages/DApps';
 import __Layout from './Layout.jsx';
 
 
@@ -76,21 +76,21 @@ export const PAGES = {
     "Banking": Banking,
     "Casinos": Casinos,
     "CloudMining": CloudMining,
+    "DApps": DApps,
     "DeFiStrategies": DeFiStrategies,
     "Education": Education,
     "Legacy": Legacy,
     "Marketing": Marketing,
     "NFTs": NFTs,
     "Poker": Poker,
+    "Portfolio": Portfolio,
     "Privacy": Privacy,
     "Receive": Receive,
+    "Send": Send,
     "Settings": Settings,
     "Swap": Swap,
     "TradingBots": TradingBots,
     "VirtualCard": VirtualCard,
-    "Send": Send,
-    "Portfolio": Portfolio,
-    "DApps": DApps,
 }
 
 export const pagesConfig = {

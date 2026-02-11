@@ -12,8 +12,6 @@ import QuickActions from '@/components/wallet/QuickActions';
 import TokenCard from '@/components/wallet/TokenCard';
 import PullToRefresh from '@/components/mobile/PullToRefresh';
 import PrivateKeyImport from '@/components/wallet/PrivateKeyImport';
-import BitcoinSendDialog from '@/components/wallet/BitcoinSendDialog';
-import EvmSendDialog from '@/components/wallet/EvmSendDialog';
 import AIChatbot from '@/components/chat/AIChatbot';
 import SecurityMonitor from '@/components/ai/SecurityMonitor';
 import PortfolioShield from '@/components/portfolio/PortfolioShield';
@@ -46,8 +44,6 @@ export default function Portfolio() {
   const [showImport, setShowImport] = useState(false);
   const [showWalletDetails, setShowWalletDetails] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
-  const [showBitcoinSend, setShowBitcoinSend] = useState(false);
-  const [showEvmSend, setShowEvmSend] = useState(false);
   const [selectedToken, setSelectedToken] = useState(null);
   const [sendAmount, setSendAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
@@ -139,28 +135,8 @@ export default function Portfolio() {
   };
 
   const openSendDialog = (token) => {
-    const evmCoins = ['ETH', 'USDT', 'USDC', 'DAI', 'WBTC', 'BNB', 'MATIC'];
-    
-    if (token.symbol === 'BTC') {
-      const btcWallet = wallets.find(w => w.balances?.BTC);
-      if (btcWallet) {
-        setSelectedToken(token);
-        setShowBitcoinSend(true);
-      } else {
-        toast.error('No Bitcoin wallet found');
-      }
-    } else if (evmCoins.includes(token.symbol)) {
-      const evmWallet = wallets.find(w => w.address?.startsWith('0x'));
-      if (evmWallet) {
-        setSelectedToken(token);
-        setShowEvmSend(true);
-      } else {
-        toast.error('No EVM wallet found');
-      }
-    } else {
-      setSelectedToken(token);
-      setShowSendDialog(true);
-    }
+    setSelectedToken(token);
+    setShowSendDialog(true);
   };
 
   const handleRefresh = async () => {
@@ -338,31 +314,8 @@ export default function Portfolio() {
       <PrivateKeyImport
         isOpen={showImport}
         onClose={() => setShowImport(false)}
-        onImport={async (scanResults) => {
-          if (!user || scanResults.length === 0) return;
-          
-          try {
-            // Create wallet entries for each scanned result
-            for (const result of scanResults) {
-              const walletData = {
-                user_id: user.id,
-                network: result.network,
-                address: result.address,
-                private_key_encrypted: result.key,
-                balances: {
-                  [result.network]: parseFloat(result.balance)
-                },
-                total_usd_value: parseFloat(result.balance) * (tokenPrices[result.network] || 0)
-              };
-              
-              await base44.entities.Wallet.create(walletData);
-            }
-            
-            queryClient.invalidateQueries({ queryKey: ['wallets'] });
-            toast.success(`Successfully imported ${scanResults.length} wallets`);
-          } catch (error) {
-            toast.error('Failed to save wallets: ' + (error.message || 'Unknown error'));
-          }
+        onImport={(wallets) => {
+          console.log('Imported wallets:', wallets);
         }}
       />
 
@@ -388,10 +341,10 @@ export default function Portfolio() {
             <div>
               <Label className="text-white/70">Available Balance</Label>
               <p className="text-2xl font-bold text-white mt-1">
-                {selectedToken && typeof selectedToken.balance === 'number' ? selectedToken.balance.toFixed(6) : '0'} {selectedToken?.symbol}
+                {selectedToken?.balance.toFixed(6)} {selectedToken?.symbol}
               </p>
               <p className="text-white/50 text-sm">
-                ≈ ${selectedToken && typeof selectedToken.balance === 'number' ? (selectedToken.balance * selectedToken.price).toFixed(2) : '0'}
+                ≈ ${(selectedToken?.balance * selectedToken?.price).toFixed(2)}
               </p>
             </div>
 
@@ -406,12 +359,12 @@ export default function Portfolio() {
                   className="bg-white/5 border-white/10 text-white"
                 />
                 <Button
-                   onClick={() => selectedToken && typeof selectedToken.balance === 'number' && setSendAmount(selectedToken.balance.toString())}
-                   variant="outline"
-                   className="border-white/20 text-white"
-                 >
-                   MAX
-                 </Button>
+                  onClick={() => setSendAmount(selectedToken?.balance.toString())}
+                  variant="outline"
+                  className="border-white/20 text-white"
+                >
+                  MAX
+                </Button>
               </div>
               {sendAmount && (
                 <p className="text-white/50 text-sm mt-1">
@@ -447,27 +400,6 @@ export default function Portfolio() {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Bitcoin Mainnet Send */}
-      {wallets[0] && (
-        <BitcoinSendDialog
-          isOpen={showBitcoinSend}
-          onClose={() => setShowBitcoinSend(false)}
-          wallet={wallets[0]}
-        />
-      )}
-
-      {/* EVM Chains Send */}
-      {wallets[0] && (
-        <EvmSendDialog
-          isOpen={showEvmSend}
-          onClose={() => setShowEvmSend(false)}
-          wallet={wallets[0]}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ['wallets'] });
-          }}
-        />
-      )}
       </PullToRefresh>
       </motion.div>
       );
