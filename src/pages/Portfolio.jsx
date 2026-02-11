@@ -41,6 +41,7 @@ export default function Portfolio() {
 
   return (
     <motion.div 
+      key="portfolio"
       initial={{ opacity: 0, x: 100 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -100 }}

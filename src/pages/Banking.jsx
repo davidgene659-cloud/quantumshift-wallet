@@ -95,7 +95,14 @@ export default function Banking() {
   const primaryAccount = accounts.find(a => a.is_primary);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-4 md:p-6">
+    <motion.div 
+      key="banking"
+      initial={{ opacity: 0, x: 100 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -100 }}
+      transition={{ type: 'tween', duration: 0.3 }}
+      className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-4 md:p-6"
+    >
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <motion.div
@@ -216,31 +223,27 @@ export default function Banking() {
           <div className="space-y-4 mt-4">
             <div>
               <Label className="text-white/70">Select Bank</Label>
-              <Select value={bankForm.bank_name} onValueChange={(v) => setBankForm({ ...bankForm, bank_name: v })}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white mt-2">
-                  <SelectValue placeholder="Choose your bank" />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-white/10">
-                  {banks.map((bank) => (
-                    <SelectItem key={bank} value={bank} className="text-white hover:bg-white/10">
-                      {bank}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MobileSelect
+                value={bankForm.bank_name}
+                onValueChange={(v) => setBankForm({ ...bankForm, bank_name: v })}
+                options={banks.map(bank => ({ value: bank, label: bank }))}
+                placeholder="Choose your bank"
+                className="mt-2"
+              />
             </div>
 
             <div>
               <Label className="text-white/70">Account Type</Label>
-              <Select value={bankForm.account_type} onValueChange={(v) => setBankForm({ ...bankForm, account_type: v })}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-white mt-2">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-white/10">
-                  <SelectItem value="checking" className="text-white hover:bg-white/10">Checking</SelectItem>
-                  <SelectItem value="savings" className="text-white hover:bg-white/10">Savings</SelectItem>
-                </SelectContent>
-              </Select>
+              <MobileSelect
+                value={bankForm.account_type}
+                onValueChange={(v) => setBankForm({ ...bankForm, account_type: v })}
+                options={[
+                  { value: 'checking', label: 'Checking' },
+                  { value: 'savings', label: 'Savings' }
+                ]}
+                placeholder="Account Type"
+                className="mt-2"
+              />
             </div>
 
             <div>
@@ -335,6 +338,6 @@ export default function Banking() {
       </Dialog>
 
       <AIChatbot />
-    </div>
+    </motion.div>
   );
 }
