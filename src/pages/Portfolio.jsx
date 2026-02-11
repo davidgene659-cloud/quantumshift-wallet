@@ -13,7 +13,9 @@ import PrivateKeyImport from '@/components/wallet/PrivateKeyImport';
 import AIChatbot from '@/components/chat/AIChatbot';
 import SecurityMonitor from '@/components/ai/SecurityMonitor';
 import PortfolioShield from '@/components/portfolio/PortfolioShield';
-import { Download } from 'lucide-react';
+import RewardsSystem from '@/components/gamification/RewardsSystem';
+import SponsorBanner from '@/components/sponsors/SponsorBanner';
+import { Download, Gift } from 'lucide-react';
 
 const mockTokens = [
   { symbol: 'BTC', balance: 0.5432, price: 43250, change24h: 2.34 },
@@ -76,10 +78,11 @@ export default function Portfolio() {
                 </button>
                 <button 
                   onClick={() => setShowImport(true)}
-                  className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none" 
-                  style={{ minWidth: '44px', minHeight: '44px' }}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 transition-all select-none flex items-center gap-2" 
+                  style={{ minHeight: '44px' }}
                 >
-                  <Download className="w-5 h-5 text-white/70" />
+                  <Download className="w-5 h-5 text-white" />
+                  <span className="text-white font-medium text-sm">Import Wallet</span>
                 </button>
                 <Link to={createPageUrl('Settings')}>
                   <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none" style={{ minWidth: '44px', minHeight: '44px' }}>
@@ -116,6 +119,15 @@ export default function Portfolio() {
           <PortfolioShield />
         </motion.div>
 
+        {/* Sponsor Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.19 }}
+        >
+          <SponsorBanner />
+        </motion.div>
+
         {/* Quick Actions */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -123,6 +135,15 @@ export default function Portfolio() {
           transition={{ delay: 0.2 }}
         >
           <QuickActions />
+        </motion.div>
+
+        {/* Rewards System */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+        >
+          <RewardsSystem />
         </motion.div>
 
         {/* Token Holdings */}

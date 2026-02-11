@@ -15,7 +15,8 @@ import {
   CreditCard,
   BookOpen,
   Heart,
-  Brain
+  Brain,
+  Image
 } from 'lucide-react';
 
 const navItems = [
@@ -32,6 +33,7 @@ const navItems = [
 
 const secondaryNavItems = [
   { icon: 'Brain', label: 'AI', page: 'AIHub' },
+  { icon: 'Image', label: 'NFTs', page: 'NFTs' },
   { icon: 'CreditCard', label: 'Card', page: 'VirtualCard' },
   { icon: 'BookOpen', label: 'Learn', page: 'Education' },
   { icon: 'Heart', label: 'Legacy', page: 'Legacy' },
@@ -83,7 +85,7 @@ export default function Layout({ children }) {
             {[...navItems, ...secondaryNavItems].map((item) => {
               const isActive = currentPath.includes(item.page);
               const Icon = typeof item.icon === 'string' ? 
-                (item.icon === 'Brain' ? Brain : item.icon === 'CreditCard' ? CreditCard : item.icon === 'BookOpen' ? BookOpen : Heart) : 
+                (item.icon === 'Brain' ? Brain : item.icon === 'Image' ? Image : item.icon === 'CreditCard' ? CreditCard : item.icon === 'BookOpen' ? BookOpen : Heart) : 
                 item.icon;
               return (
                 <Link
@@ -133,7 +135,7 @@ export default function Layout({ children }) {
 
           {secondaryNavItems.map((item) => {
             const isActive = currentPath.includes(item.page);
-            const Icon = item.icon === 'Brain' ? Brain : item.icon === 'CreditCard' ? CreditCard : item.icon === 'BookOpen' ? BookOpen : Heart;
+            const Icon = item.icon === 'Brain' ? Brain : item.icon === 'Image' ? Image : item.icon === 'CreditCard' ? CreditCard : item.icon === 'BookOpen' ? BookOpen : Heart;
             return (
               <Link
                   key={item.page}
