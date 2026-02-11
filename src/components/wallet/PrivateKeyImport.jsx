@@ -77,38 +77,67 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
       return;
     }
 
+    setIsImporting(true);
+
     try {
-      // Create wallet records in database
-      for (const result of scanResults) {
+      // Group wallets by network and consolidate balances
+      const consolidatedWallets = {};
+      
+      scanResults.forEach(result => {
+        if (!consolidatedWallets[result.network]) {
+          consolidatedWallets[result.network] = {
+            network: result.network,
+            totalBalance: 0,
+            addresses: []
+          };
+        }
+        consolidatedWallets[result.network].totalBalance += parseFloat(result.balance);
+        consolidatedWallets[result.network].addresses.push(result.address);
+      });
+
+      // Create one wallet per network with batching and delays
+      const networks = Object.values(consolidatedWallets);
+      let imported = 0;
+
+      for (let i = 0; i < networks.length; i++) {
+        const network = networks[i];
+        
         const balances = {};
-        balances[result.network] = parseFloat(result.balance);
+        balances[network.network] = network.totalBalance;
 
         const walletData = {
           user_id: user.id,
-          wallet_name: `${result.network} Wallet`,
-          wallet_address: result.address,
+          wallet_name: `${network.network} Wallet`,
+          wallet_address: network.addresses[0], // Use first address
           wallet_type: importType === 'hardware' ? 'hardware' : 'imported',
           balances: balances,
-          total_usd_value: parseFloat(result.balance) * 100,
-          networks: [result.network]
+          total_usd_value: network.totalBalance * 100,
+          networks: [network.network]
         };
 
-        // Only add hardware_device if it's a hardware wallet
         if (importType === 'hardware') {
           walletData.hardware_device = 'Ledger Nano X';
         }
 
         await base44.entities.Wallet.create(walletData);
+        imported++;
+
+        // Add delay between creates to avoid rate limiting
+        if (i < networks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
       }
 
-      toast.success(`Successfully imported ${scanResults.length} wallet(s)`);
+      toast.success(`Successfully imported ${imported} wallet(s)`);
       onImport?.(scanResults);
       setPrivateKeys('');
       setScanResults([]);
       setImportType('private_key');
+      setIsImporting(false);
       onClose();
     } catch (error) {
       console.error('Import failed:', error);
+      setIsImporting(false);
       toast.error(`Failed to import wallets: ${error.message || 'Please try again'}`);
     }
   };
