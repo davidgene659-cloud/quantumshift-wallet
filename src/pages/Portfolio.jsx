@@ -234,6 +234,8 @@ export default function Portfolio() {
     });
 
   const handleSend = () => {
+    toast.loading('Validating transaction...');
+
     if (!selectedToken || !sendAmount || !recipientAddress) {
       toast.error('Please fill all fields');
       return;
@@ -248,12 +250,7 @@ export default function Portfolio() {
     if (selectedToken.symbol === 'BTC') network = 'bitcoin';
     else if (selectedToken.symbol === 'SOL') network = 'solana';
 
-    console.log('Sending transaction:', {
-      token: selectedToken.symbol,
-      amount: parseFloat(sendAmount),
-      recipient: recipientAddress,
-      network
-    });
+    toast.success('Sending ' + sendAmount + ' ' + selectedToken.symbol + '...');
 
     sendMutation.mutate({
       token: selectedToken.symbol,
