@@ -27,23 +27,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { decryptPrivateKey, bitcoinService, ethereumService } from '@/components/blockchain/blockchainService';
+import { decryptPrivateKey, bitcoinService, ethereumService, solanaService, priceService, COINGECKO_IDS } from '@/components/blockchain/blockchainService';
 
-// Token prices (in production, fetch from API)
-const tokenPrices = {
-  BTC: 43250,
-  ETH: 2280,
-  USDT: 1,
-  SOL: 98.5,
-  BNB: 312,
-  DOGE: 0.082,
-  USDC: 1,
-  ADA: 0.52,
-  DOT: 7.8,
-  MATIC: 0.91,
-  AVAX: 36.5,
-  LINK: 15.2
-};
+// Token prices will be fetched in real-time
+let tokenPrices = {};
 
 export default function Portfolio() {
   const [showBalance, setShowBalance] = useState(true);
@@ -59,6 +46,26 @@ export default function Portfolio() {
   const [user, setUser] = useState(null);
 
   const queryClient = useQueryClient();
+
+  // Fetch real-time prices
+  useEffect(() => {
+    const fetchPrices = async () => {
+      const tokenIds = Object.values(COINGECKO_IDS);
+      const prices = await priceService.getPrices(tokenIds);
+      const priceMap = {};
+      
+      Object.entries(COINGECKO_IDS).forEach(([symbol, id]) => {
+        priceMap[symbol] = prices[id]?.usd || 0;
+      });
+      
+      tokenPrices = priceMap;
+    };
+    
+    fetchPrices();
+    // Refresh prices every 60 seconds
+    const interval = setInterval(fetchPrices, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
