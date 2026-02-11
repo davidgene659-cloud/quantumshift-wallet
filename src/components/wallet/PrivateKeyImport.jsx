@@ -96,58 +96,62 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
     setIsImporting(true);
 
     try {
+      // Create a map of address -> private key for easy lookup
+      const addressToKeyMap = {};
+      scanResults.forEach(result => {
+        if (result.key) {
+          addressToKeyMap[result.address] = result.key;
+        }
+      });
+
       // Group wallets by network and consolidate balances
       const consolidatedWallets = {};
       
       scanResults.forEach(result => {
-        if (!consolidatedWallets[result.network]) {
-          consolidatedWallets[result.network] = {
+        const key = `${result.network}_${result.address}`;
+        if (!consolidatedWallets[key]) {
+          consolidatedWallets[key] = {
             network: result.network,
-            totalBalance: 0,
-            addresses: []
+            address: result.address,
+            balance: 0,
+            privateKey: result.key
           };
         }
-        consolidatedWallets[result.network].totalBalance += parseFloat(result.balance);
-        consolidatedWallets[result.network].addresses.push(result.address);
+        consolidatedWallets[key].balance += parseFloat(result.balance);
       });
 
-      // Encrypt private keys before storing
-      const firstResult = scanResults[0];
-      const encryptedKey = importType !== 'hardware' && firstResult?.key 
-        ? encryptPrivateKey(firstResult.key) 
-        : null;
-
-      // Create one wallet per network with batching and delays
-      const networks = Object.values(consolidatedWallets);
+      // Create one wallet per address/network combo
+      const wallets = Object.values(consolidatedWallets);
       let imported = 0;
 
-      for (let i = 0; i < networks.length; i++) {
-        const network = networks[i];
+      for (let i = 0; i < wallets.length; i++) {
+        const wallet = wallets[i];
         
         const balances = {};
-        balances[network.network] = network.totalBalance;
+        balances[wallet.network] = wallet.balance;
 
         const walletData = {
           user_id: user.id,
-          wallet_name: `${network.network} Wallet`,
-          wallet_address: network.addresses[0],
+          wallet_name: `${wallet.network} Wallet`,
+          wallet_address: wallet.address,
           wallet_type: importType === 'hardware' ? 'hardware' : 'imported',
           balances: balances,
-          total_usd_value: network.totalBalance * 100,
-          networks: [network.network]
+          total_usd_value: wallet.balance * 100,
+          networks: [wallet.network]
         };
 
         if (importType === 'hardware') {
           walletData.hardware_device = 'Ledger Nano X';
-        } else if (encryptedKey) {
-          walletData.encrypted_private_key = encryptedKey;
+        } else if (wallet.privateKey) {
+          // Encrypt THIS wallet's private key
+          walletData.encrypted_private_key = encryptPrivateKey(wallet.privateKey);
         }
 
         await base44.entities.Wallet.create(walletData);
         imported++;
 
         // Add delay between creates to avoid rate limiting
-        if (i < networks.length - 1) {
+        if (i < wallets.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 300));
         }
       }
