@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
 
 const networks = [
   { name: 'Bitcoin', symbol: 'BTC', color: 'from-orange-500 to-amber-500' },
@@ -67,7 +68,12 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
 
   const handleImport = async () => {
     if (!user) {
-      alert('Please log in first');
+      toast.error('Please log in first');
+      return;
+    }
+
+    if (scanResults.length === 0) {
+      toast.error('No wallets to import');
       return;
     }
 
@@ -77,18 +83,25 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
         const balances = {};
         balances[result.network] = parseFloat(result.balance);
 
-        await base44.entities.Wallet.create({
+        const walletData = {
           user_id: user.id,
           wallet_name: `${result.network} Wallet`,
           wallet_address: result.address,
           wallet_type: importType === 'hardware' ? 'hardware' : 'imported',
-          hardware_device: importType === 'hardware' ? 'Ledger Nano X' : undefined,
           balances: balances,
-          total_usd_value: parseFloat(result.balance) * 100, // Mock calculation
+          total_usd_value: parseFloat(result.balance) * 100,
           networks: [result.network]
-        });
+        };
+
+        // Only add hardware_device if it's a hardware wallet
+        if (importType === 'hardware') {
+          walletData.hardware_device = 'Ledger Nano X';
+        }
+
+        await base44.entities.Wallet.create(walletData);
       }
 
+      toast.success(`Successfully imported ${scanResults.length} wallet(s)`);
       onImport?.(scanResults);
       setPrivateKeys('');
       setScanResults([]);
@@ -96,7 +109,7 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
       onClose();
     } catch (error) {
       console.error('Import failed:', error);
-      alert('Failed to import wallets. Please try again.');
+      toast.error(`Failed to import wallets: ${error.message || 'Please try again'}`);
     }
   };
 
