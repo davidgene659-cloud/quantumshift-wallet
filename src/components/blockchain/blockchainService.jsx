@@ -14,9 +14,18 @@ export const decryptPrivateKey = (encryptedKey) => {
 // Bitcoin
 export const bitcoinService = {
   async getBalance(address) {
-    const response = await fetch(`https://blockchain.info/q/addressbalance/${address}`);
-    const satoshis = await response.text();
-    return parseFloat(satoshis) / 100000000; // Convert to BTC
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      const response = await base44.integrations.Core.InvokeLLM({
+        prompt: `Get the Bitcoin balance for address ${address}. Use web search to find the current BTC balance. Return ONLY the number (e.g., 0.5, 1.25, etc)`,
+        add_context_from_internet: true
+      });
+      const balance = parseFloat(response);
+      return isNaN(balance) ? 0 : balance;
+    } catch (error) {
+      console.error('Failed to fetch BTC balance:', error);
+      return 0;
+    }
   },
 
   async broadcastTransaction(signedTxHex) {
