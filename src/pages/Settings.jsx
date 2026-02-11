@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Trash2, AlertTriangle, User, Shield, Bell, Moon } from 'lucide-react';
+import { ArrowLeft, Trash2, AlertTriangle, User, Shield, Bell, Moon, Globe, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,13 @@ export default function Settings() {
       alert('Failed to delete account. Please contact support.');
     }
   };
+
+  const vpnProviders = [
+    { name: 'NordVPN', url: 'https://nordvpn.com', badge: 'Popular' },
+    { name: 'ExpressVPN', url: 'https://expressvpn.com', badge: 'Fast' },
+    { name: 'ProtonVPN', url: 'https://protonvpn.com', badge: 'Privacy-First' },
+    { name: 'Mullvad', url: 'https://mullvad.net', badge: 'Anonymous' }
+  ];
 
   const settingsSections = [
     {
@@ -95,11 +102,51 @@ export default function Settings() {
           </motion.div>
         ))}
 
-        {/* Danger Zone */}
+        {/* VPN Recommendations */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Globe className="w-5 h-5 text-blue-400" />
+            <h2 className="text-white font-semibold">Network Privacy (VPN)</h2>
+          </div>
+          
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-4 mb-4">
+            <p className="text-blue-400 text-sm font-medium mb-1">🔒 Protect Your Location</p>
+            <p className="text-white/70 text-xs">
+              D.I.D protects your wallet identity, but your IP address and location are still visible. 
+              For complete anonymity when accessing casinos and DApps, use a VPN service.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-3">
+            {vpnProviders.map((provider) => (
+              <a
+                key={provider.name}
+                href={provider.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all group"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-white font-semibold">{provider.name}</h3>
+                  <ExternalLink className="w-4 h-4 text-white/50 group-hover:text-white/70" />
+                </div>
+                <span className="inline-block px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded">
+                  {provider.badge}
+                </span>
+              </a>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Danger Zone */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
         >
           <h2 className="text-red-400 font-semibold mb-3">Danger Zone</h2>
           <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4">

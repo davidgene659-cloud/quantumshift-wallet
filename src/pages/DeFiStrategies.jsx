@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, Sparkles, Zap, Shield, Play, Pause } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TrendingUp, Sparkles, Zap, Shield, Play, Pause, Settings, CheckCircle2 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AIChatbot from '@/components/chat/AIChatbot';
+import RiskProfileSetup from '@/components/defi/RiskProfileSetup';
 
 export default function DeFiStrategies() {
   const [generating, setGenerating] = useState(false);
+  const [showProfileSetup, setShowProfileSetup] = useState(false);
+  const [confirmingStrategy, setConfirmingStrategy] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: strategies = [] } = useQuery({
@@ -16,29 +20,81 @@ export default function DeFiStrategies() {
     initialData: [],
   });
 
-  const activateStrategyMutation = useMutation({
-    mutationFn: ({ id, status }) => base44.entities.DeFiStrategy.update(id, { status }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['defiStrategies'] }),
+  const { data: riskProfile } = useQuery({
+    queryKey: ['riskProfile'],
+    queryFn: async () => {
+      const profiles = await base44.entities.RiskProfile.list();
+      return profiles[0];
+    }
   });
 
+  const activateStrategyMutation = useMutation({
+    mutationFn: ({ id, status }) => base44.entities.DeFiStrategy.update(id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['defiStrategies'] });
+      setConfirmingStrategy(null);
+    }
+  });
+
+  const handleActivateStrategy = (strategy) => {
+    if (strategy.status === 'suggested') {
+      setConfirmingStrategy(strategy);
+    } else if (strategy.status === 'active') {
+      activateStrategyMutation.mutate({ id: strategy.id, status: 'paused' });
+    } else {
+      activateStrategyMutation.mutate({ id: strategy.id, status: 'active' });
+    }
+  };
+
   const generateStrategy = async () => {
+    if (!riskProfile) {
+      setShowProfileSetup(true);
+      return;
+    }
+
     setGenerating(true);
     
-    // In production, would call AI service
-    setTimeout(async () => {
+    try {
+      const response = await base44.integrations.Core.InvokeLLM({
+        prompt: `Generate a personalized DeFi strategy based on:
+- Risk Tolerance: ${riskProfile.risk_tolerance}
+- Target APY: ${riskProfile.stablecoin_allocation_target || 15}%
+
+Create a JSON strategy with:
+- strategy_name (creative, specific name)
+- description (how it works, 1-2 sentences)
+- risk_level (low/medium/high based on risk tolerance)
+- expected_apy (realistic number)
+- required_tokens (array of 2-4 tokens)
+- protocols (array of 2-4 DeFi protocols)
+- ai_confidence_score (70-95)
+
+Make it unique and relevant to current DeFi trends.`,
+        response_json_schema: {
+          type: "object",
+          properties: {
+            strategy_name: { type: "string" },
+            description: { type: "string" },
+            risk_level: { type: "string", enum: ["low", "medium", "high"] },
+            expected_apy: { type: "number" },
+            required_tokens: { type: "array", items: { type: "string" } },
+            protocols: { type: "array", items: { type: "string" } },
+            ai_confidence_score: { type: "number" }
+          }
+        }
+      });
+
       await base44.entities.DeFiStrategy.create({
-        strategy_name: 'Balanced Yield Optimizer',
-        description: 'Automatically rotates between Aave, Compound, and Yearn to maximize stable yields',
-        risk_level: 'medium',
-        expected_apy: 12.5,
-        required_tokens: ['USDC', 'DAI', 'USDT'],
-        protocols: ['Aave', 'Compound', 'Yearn'],
-        ai_confidence_score: 87
+        ...response,
+        status: 'suggested'
       });
       
       queryClient.invalidateQueries({ queryKey: ['defiStrategies'] });
+    } catch (error) {
+      console.error('Failed to generate strategy:', error);
+    } finally {
       setGenerating(false);
-    }, 2000);
+    }
   };
 
   const riskColors = {
@@ -57,23 +113,33 @@ export default function DeFiStrategies() {
             <h1 className="text-3xl font-bold text-white mb-2">AI DeFi Strategies</h1>
             <p className="text-white/60">Personalized yield optimization powered by AI</p>
           </div>
-          <Button
-            onClick={generateStrategy}
-            disabled={generating}
-            className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
-          >
-            {generating ? (
-              <>
-                <Sparkles className="w-4 h-4 mr-2 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4 mr-2" />
-                Generate New Strategy
-              </>
-            )}
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              onClick={() => setShowProfileSetup(true)}
+              variant="outline"
+              className="border-white/10"
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              {riskProfile ? 'Edit Profile' : 'Setup Profile'}
+            </Button>
+            <Button
+              onClick={generateStrategy}
+              disabled={generating}
+              className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+            >
+              {generating ? (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Generate Strategy
+                </>
+              )}
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -168,19 +234,24 @@ export default function DeFiStrategies() {
                     </div>
 
                     <Button
-                      onClick={() => activateStrategyMutation.mutate({
-                        id: strategy.id,
-                        status: strategy.status === 'active' ? 'paused' : 'active'
-                      })}
-                      className={strategy.status === 'active' 
-                        ? 'bg-yellow-500 hover:bg-yellow-600' 
-                        : 'bg-green-500 hover:bg-green-600'
+                      onClick={() => handleActivateStrategy(strategy)}
+                      className={
+                        strategy.status === 'active' 
+                          ? 'bg-yellow-500 hover:bg-yellow-600'
+                          : strategy.status === 'suggested'
+                          ? 'bg-purple-500 hover:bg-purple-600'
+                          : 'bg-green-500 hover:bg-green-600'
                       }
                     >
                       {strategy.status === 'active' ? (
                         <>
                           <Pause className="w-4 h-4 mr-2" />
                           Pause
+                        </>
+                      ) : strategy.status === 'suggested' ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                          Approve
                         </>
                       ) : (
                         <>
@@ -211,6 +282,101 @@ export default function DeFiStrategies() {
         </Card>
 
       </div>
+
+      {/* Profile Setup Dialog */}
+      <Dialog open={showProfileSetup} onOpenChange={setShowProfileSetup}>
+        <DialogContent className="bg-gray-900 border-white/10 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Setup Your Risk Profile</DialogTitle>
+          </DialogHeader>
+          <RiskProfileSetup onComplete={() => setShowProfileSetup(false)} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Strategy Confirmation Dialog */}
+      <Dialog open={!!confirmingStrategy} onOpenChange={() => setConfirmingStrategy(null)}>
+        <DialogContent className="bg-gray-900 border-white/10 text-white max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Approve Strategy Execution</DialogTitle>
+          </DialogHeader>
+          {confirmingStrategy && (
+            <div className="space-y-4 mt-4">
+              <Card className="bg-white/5 border-white/10">
+                <CardContent className="p-4">
+                  <h3 className="text-white font-bold mb-2">{confirmingStrategy.strategy_name}</h3>
+                  <p className="text-white/70 text-sm mb-3">{confirmingStrategy.description}</p>
+                  
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <p className="text-white/50 text-xs">Expected APY</p>
+                      <p className="text-green-400 font-bold">{confirmingStrategy.expected_apy}%</p>
+                    </div>
+                    <div>
+                      <p className="text-white/50 text-xs">Risk Level</p>
+                      <p className="text-yellow-400 font-bold">{confirmingStrategy.risk_level.toUpperCase()}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-white/50 text-xs mb-1">Required Tokens:</p>
+                      <div className="flex gap-2">
+                        {confirmingStrategy.required_tokens?.map((token, i) => (
+                          <span key={i} className="px-2 py-1 bg-white/10 rounded text-xs text-white">
+                            {token}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-white/50 text-xs mb-1">Protocols:</p>
+                      <div className="flex gap-2">
+                        {confirmingStrategy.protocols?.map((protocol, i) => (
+                          <span key={i} className="px-2 py-1 bg-white/10 rounded text-xs text-white">
+                            {protocol}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-yellow-500/10 border-yellow-500/30">
+                <CardContent className="p-4">
+                  <p className="text-yellow-400 text-sm font-medium mb-2">⚠️ Important</p>
+                  <ul className="text-white/70 text-xs space-y-1">
+                    <li>• This will deploy capital from your wallet</li>
+                    <li>• Smart contracts will be executed automatically</li>
+                    <li>• You can pause the strategy at any time</li>
+                    <li>• DeFi carries risks - only invest what you can afford to lose</li>
+                  </ul>
+                </CardContent>
+              </Card>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => setConfirmingStrategy(null)}
+                  variant="outline"
+                  className="flex-1 border-white/10"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => activateStrategyMutation.mutate({
+                    id: confirmingStrategy.id,
+                    status: 'active'
+                  })}
+                  className="flex-1 bg-green-500 hover:bg-green-600"
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  Approve & Activate
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <AIChatbot />
     </div>

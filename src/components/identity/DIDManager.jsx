@@ -63,7 +63,15 @@ export default function DIDManager({ isOpen, onClose, onConnect }) {
             <p className="text-purple-400 text-sm font-medium mb-1">What is DID?</p>
             <p className="text-white/70 text-xs">
               Decentralized Identity lets you interact with DApps and casinos without exposing your wallet address. 
-              Complete anonymity with verifiable credentials.
+              Provides identity privacy with verifiable credentials.
+            </p>
+          </div>
+
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+            <p className="text-amber-400 text-sm font-medium mb-1">⚠️ Network Privacy Notice</p>
+            <p className="text-white/70 text-xs">
+              D.I.D protects your identity and wallet address, but does not mask your IP address or location. 
+              For network privacy, use a VPN service separately.
             </p>
           </div>
 
