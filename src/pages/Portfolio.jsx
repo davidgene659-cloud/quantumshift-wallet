@@ -314,8 +314,31 @@ export default function Portfolio() {
       <PrivateKeyImport
         isOpen={showImport}
         onClose={() => setShowImport(false)}
-        onImport={(wallets) => {
-          console.log('Imported wallets:', wallets);
+        onImport={async (scanResults) => {
+          if (!user || scanResults.length === 0) return;
+          
+          try {
+            // Create wallet entries for each scanned result
+            for (const result of scanResults) {
+              const walletData = {
+                user_id: user.id,
+                network: result.network,
+                address: result.address,
+                private_key_encrypted: result.key,
+                balances: {
+                  [result.network]: parseFloat(result.balance)
+                },
+                total_usd_value: parseFloat(result.balance) * (tokenPrices[result.network] || 0)
+              };
+              
+              await base44.entities.Wallet.create(walletData);
+            }
+            
+            queryClient.invalidateQueries({ queryKey: ['wallets'] });
+            toast.success(`Successfully imported ${scanResults.length} wallets`);
+          } catch (error) {
+            toast.error('Failed to save wallets: ' + (error.message || 'Unknown error'));
+          }
         }}
       />
 
