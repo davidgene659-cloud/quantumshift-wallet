@@ -50,6 +50,7 @@
 import AIHub from './pages/AIHub';
 import Analytics from './pages/Analytics';
 import Banking from './pages/Banking';
+import BotBuilder from './pages/BotBuilder';
 import Casinos from './pages/Casinos';
 import CloudMining from './pages/CloudMining';
 import DApps from './pages/DApps';
@@ -67,7 +68,6 @@ import Settings from './pages/Settings';
 import Swap from './pages/Swap';
 import TradingBots from './pages/TradingBots';
 import VirtualCard from './pages/VirtualCard';
-import BotBuilder from './pages/BotBuilder';
 import __Layout from './Layout.jsx';
 
 
@@ -75,6 +75,7 @@ export const PAGES = {
     "AIHub": AIHub,
     "Analytics": Analytics,
     "Banking": Banking,
+    "BotBuilder": BotBuilder,
     "Casinos": Casinos,
     "CloudMining": CloudMining,
     "DApps": DApps,
@@ -92,7 +93,6 @@ export const PAGES = {
     "Swap": Swap,
     "TradingBots": TradingBots,
     "VirtualCard": VirtualCard,
-    "BotBuilder": BotBuilder,
 }
 
 export const pagesConfig = {

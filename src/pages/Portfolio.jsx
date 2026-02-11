@@ -235,16 +235,29 @@ export default function Portfolio() {
       toast.error('Please fill all fields');
       return;
     }
-    if (!currentWallet.wallet_type || !currentWallet.encrypted_private_key) {
+    if (!currentWallet?.encrypted_private_key) {
       toast.error('This wallet does not support sending');
       return;
     }
+
+    // Determine network based on token
+    let network = 'ethereum';
+    if (selectedToken.symbol === 'BTC') network = 'bitcoin';
+    else if (selectedToken.symbol === 'SOL') network = 'solana';
+
+    console.log('Sending transaction:', {
+      token: selectedToken.symbol,
+      amount: parseFloat(sendAmount),
+      recipient: recipientAddress,
+      network
+    });
+
     sendMutation.mutate({
       token: selectedToken.symbol,
       amount: parseFloat(sendAmount),
       recipient: recipientAddress,
       walletType: currentWallet.wallet_type,
-      network: currentWallet.networks?.[0] || 'ethereum'
+      network: network
     });
   };
 
