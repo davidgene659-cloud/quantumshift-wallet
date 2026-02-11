@@ -30,11 +30,13 @@ export default function EvmSendDialog({ isOpen, onClose, wallet, onSuccess }) {
       // Get balance for the selected chain
       getBalance(wallet.address, chain)
         .then(balanceWei => {
-          const balanceEth = parseInt(balanceWei) / 10 ** 18;
+          const balanceNum = typeof balanceWei === 'string' ? parseInt(balanceWei) : balanceWei;
+          const balanceEth = Number(balanceNum / 10 ** 18);
           setBalance(balanceEth);
         })
         .catch(error => {
           toast.error('Failed to fetch balance: ' + error.message);
+          setBalance(0);
         });
     }
   }, [isOpen, chain, wallet]);
@@ -141,7 +143,7 @@ export default function EvmSendDialog({ isOpen, onClose, wallet, onSuccess }) {
               <div>
                 <Label className="text-white/70">Available Balance</Label>
                 <p className="text-2xl font-bold text-white mt-1">
-                  {balance !== null ? balance.toFixed(6) : '...'} {SUPPORTED_CHAINS[chain]?.symbol}
+                  {balance !== null && typeof balance === 'number' ? parseFloat(balance).toFixed(6) : '...'} {SUPPORTED_CHAINS[chain]?.symbol}
                 </p>
               </div>
 
@@ -157,7 +159,7 @@ export default function EvmSendDialog({ isOpen, onClose, wallet, onSuccess }) {
                     step="0.0001"
                   />
                   <Button
-                    onClick={() => balance && setSendAmount((balance * 0.95).toString())}
+                    onClick={() => balance && typeof balance === 'number' && setSendAmount((balance * 0.95).toString())}
                     variant="outline"
                     className="border-white/20 text-white"
                   >
