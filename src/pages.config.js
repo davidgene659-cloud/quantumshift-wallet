@@ -47,12 +47,17 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import AIHub from './pages/AIHub';
 import Analytics from './pages/Analytics';
 import Banking from './pages/Banking';
 import Casinos from './pages/Casinos';
 import CloudMining from './pages/CloudMining';
 import DApps from './pages/DApps';
+import DeFiStrategies from './pages/DeFiStrategies';
+import Education from './pages/Education';
+import Legacy from './pages/Legacy';
 import Marketing from './pages/Marketing';
+import NFTs from './pages/NFTs';
 import Poker from './pages/Poker';
 import Portfolio from './pages/Portfolio';
 import Privacy from './pages/Privacy';
@@ -62,21 +67,21 @@ import Settings from './pages/Settings';
 import Swap from './pages/Swap';
 import TradingBots from './pages/TradingBots';
 import VirtualCard from './pages/VirtualCard';
-import Education from './pages/Education';
-import Legacy from './pages/Legacy';
-import AIHub from './pages/AIHub';
-import DeFiStrategies from './pages/DeFiStrategies';
-import NFTs from './pages/NFTs';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "AIHub": AIHub,
     "Analytics": Analytics,
     "Banking": Banking,
     "Casinos": Casinos,
     "CloudMining": CloudMining,
     "DApps": DApps,
+    "DeFiStrategies": DeFiStrategies,
+    "Education": Education,
+    "Legacy": Legacy,
     "Marketing": Marketing,
+    "NFTs": NFTs,
     "Poker": Poker,
     "Portfolio": Portfolio,
     "Privacy": Privacy,
@@ -86,11 +91,6 @@ export const PAGES = {
     "Swap": Swap,
     "TradingBots": TradingBots,
     "VirtualCard": VirtualCard,
-    "Education": Education,
-    "Legacy": Legacy,
-    "AIHub": AIHub,
-    "DeFiStrategies": DeFiStrategies,
-    "NFTs": NFTs,
 }
 
 export const pagesConfig = {
