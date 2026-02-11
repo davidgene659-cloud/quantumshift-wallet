@@ -275,7 +275,7 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
               <Textarea
                 value={privateKeys}
                 onChange={(e) => setPrivateKeys(e.target.value)}
-                placeholder="Format: address:privatekey (one per line)&#10;0x1234...abcd:0xkey1234...&#10;0x5678...efgh:0xkey5678..."
+                placeholder="Format: address:privatekey:network:balance&#10;0x1234:0xkey1234:ETH:1.5&#10;0x5678:0xkey5678:BTC:0.05"
                 className="bg-white/5 border-white/10 text-white font-mono text-sm h-32"
               />
               <p className="text-white/50 text-xs mt-2">
