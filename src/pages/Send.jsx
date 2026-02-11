@@ -30,9 +30,13 @@ export default function Send() {
 
   useEffect(() => {
     if (user) {
-      base44.entities.Wallet.filter({ user_id: user.id, is_primary: true }).then(wallets => {
-        if (wallets.length > 0) setWallet(wallets[0]);
-      });
+      base44.entities.Wallet.filter({ user_id: user.id }).then(wallets => {
+        if (wallets.length > 0) {
+          // Try primary wallet first, then any wallet
+          const primaryWallet = wallets.find(w => w.is_primary);
+          setWallet(primaryWallet || wallets[0]);
+        }
+      }).catch(err => console.error('Failed to fetch wallets:', err));
     }
   }, [user]);
 
