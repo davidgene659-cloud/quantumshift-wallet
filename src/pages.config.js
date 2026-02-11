@@ -50,7 +50,6 @@
 import AIHub from './pages/AIHub';
 import Analytics from './pages/Analytics';
 import Banking from './pages/Banking';
-import BotBuilder from './pages/BotBuilder';
 import Casinos from './pages/Casinos';
 import CloudMining from './pages/CloudMining';
 import DApps from './pages/DApps';
@@ -75,7 +74,6 @@ export const PAGES = {
     "AIHub": AIHub,
     "Analytics": Analytics,
     "Banking": Banking,
-    "BotBuilder": BotBuilder,
     "Casinos": Casinos,
     "CloudMining": CloudMining,
     "DApps": DApps,

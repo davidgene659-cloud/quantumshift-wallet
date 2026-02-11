@@ -7,123 +7,66 @@ import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import WalletDetails from '@/components/wallet/WalletDetails';
 import { createPageUrl } from '@/utils';
+import PortfolioChart from '@/components/wallet/PortfolioChart';
 import QuickActions from '@/components/wallet/QuickActions';
 import TokenCard from '@/components/wallet/TokenCard';
 import PullToRefresh from '@/components/mobile/PullToRefresh';
 import PrivateKeyImport from '@/components/wallet/PrivateKeyImport';
-import WalletManager from '@/components/wallet/WalletManager';
-import TransactionHistory from '@/components/wallet/TransactionHistory';
-import AdvancedChart from '@/components/analytics/AdvancedChart';
-import PLTracker from '@/components/analytics/PLTracker';
-import TaxReport from '@/components/analytics/TaxReport';
-import LastTransactionDetails from '@/components/wallet/LastTransactionDetails';
 import AIChatbot from '@/components/chat/AIChatbot';
 import SecurityMonitor from '@/components/ai/SecurityMonitor';
 import PortfolioShield from '@/components/portfolio/PortfolioShield';
 import RewardsSystem from '@/components/gamification/RewardsSystem';
 import SponsorBanner from '@/components/sponsors/SponsorBanner';
-import { notificationManager } from '@/components/notifications/NotificationManager';
 import { Download, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { decryptPrivateKey, sendBitcoinTransaction, sendEthereumTransaction, sendSolanaTransaction } from '@/components/blockchain/blockchainService';
-import { priceOracle } from '@/components/blockchain/priceOracle';
+
+// Token prices (in production, fetch from API)
+const tokenPrices = {
+  BTC: 43250,
+  ETH: 2280,
+  USDT: 1,
+  SOL: 98.5,
+  BNB: 312,
+  DOGE: 0.082,
+  USDC: 1,
+  ADA: 0.52,
+  DOT: 7.8,
+  MATIC: 0.91,
+  AVAX: 36.5,
+  LINK: 15.2
+};
 
 export default function Portfolio() {
   const [showBalance, setShowBalance] = useState(true);
   const [showImport, setShowImport] = useState(false);
   const [showWalletDetails, setShowWalletDetails] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
-  const [showReceiveDialog, setShowReceiveDialog] = useState(false);
   const [selectedToken, setSelectedToken] = useState(null);
   const [sendAmount, setSendAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
-  const [receiveAmount, setReceiveAmount] = useState('');
-  const [selectedWalletId, setSelectedWalletId] = useState(null);
   const [user, setUser] = useState(null);
-  const [tokenPrices, setTokenPrices] = useState({
-    BTC: 0,
-    ETH: 0,
-    USDT: 0,
-    SOL: 0,
-    BNB: 0,
-    DOGE: 0,
-    USDC: 0,
-    ADA: 0,
-    DOT: 0,
-    MATIC: 0,
-    AVAX: 0,
-    LINK: 0
-  });
 
   const queryClient = useQueryClient();
-
-  // Fetch real-time prices and check notifications
-  useEffect(() => {
-    const fetchPrices = async () => {
-      const prices = await priceOracle.getPrices();
-      const formattedPrices = {};
-      Object.entries(prices).forEach(([symbol, data]) => {
-        formattedPrices[symbol] = data.current;
-      });
-      setTokenPrices(formattedPrices);
-
-      // Check for price movements and trigger notifications
-      if (user && Object.keys(tokenPrices).length > 0) {
-        try {
-          const preferences = await base44.entities.NotificationPreference.filter({ user_id: user.id });
-          await notificationManager.checkPriceMovement(formattedPrices, tokenPrices, user, preferences);
-        } catch (e) {
-          // Silently fail if preferences don't exist
-        }
-      }
-    };
-
-    fetchPrices();
-    const interval = setInterval(fetchPrices, 60000); // Update every minute
-
-    return () => clearInterval(interval);
-  }, [user]);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
-
-  // Fetch notification preferences
-  const { data: notificationPreferences = [] } = useQuery({
-    queryKey: ['notificationPreferences', user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      try {
-        return await base44.entities.NotificationPreference.filter({ user_id: user.id });
-      } catch {
-        return [];
-      }
-    },
-    enabled: !!user
-  });
 
   // Fetch wallet data
   const { data: wallets = [], isLoading } = useQuery({
     queryKey: ['wallets', user?.email],
     queryFn: async () => {
       if (!user) return [];
-      const result = await base44.entities.Wallet.filter({ user_id: user.id }, '-created_date');
-      // Set primary wallet as selected by default
-      const primaryWallet = result.find(w => w.is_primary);
-      if (primaryWallet && !selectedWalletId) {
-        setSelectedWalletId(primaryWallet.id);
-      } else if (result.length > 0 && !selectedWalletId) {
-        setSelectedWalletId(result[0].id);
-      }
+      const result = await base44.entities.Wallet.filter({ user_id: user.id });
       return result;
     },
     enabled: !!user,
   });
 
-  const currentWallet = wallets.find(w => w.id === selectedWalletId) || wallets[0];
+  const currentWallet = wallets[0];
   const balances = currentWallet?.balances || {};
 
   // Convert balances to token array
@@ -131,22 +74,47 @@ export default function Portfolio() {
     symbol,
     balance: parseFloat(balance) || 0,
     price: tokenPrices[symbol] || 0,
-    change24h: Math.random() * 10 - 5 // Mock change
+    change24h: (Math.random() * 10 - 5).toFixed(2) // Mock change
   }));
 
   const totalValue = tokens.reduce((acc, t) => acc + (t.balance * t.price), 0);
 
-  // Receive is read-only - transactions come from blockchain
-  const receiveMutation = useMutation({
-    mutationFn: async ({ token, amount }) => {
-      throw new Error('Cannot manually receive funds. Real transactions will appear automatically when sent to your wallet address.');
+  // Send transaction mutation
+  const sendMutation = useMutation({
+    mutationFn: async ({ token, amount, recipient }) => {
+      if (!currentWallet) throw new Error('No wallet found');
+      
+      const newBalance = balances[token] - amount;
+      if (newBalance < 0) throw new Error('Insufficient balance');
+
+      // Update wallet balance
+      await base44.entities.Wallet.update(currentWallet.id, {
+        balances: {
+          ...balances,
+          [token]: newBalance
+        },
+        total_usd_value: totalValue - (amount * tokenPrices[token])
+      });
+
+      // Record transaction
+      await base44.entities.Transaction.create({
+        user_id: user.id,
+        type: 'withdraw',
+        from_token: token,
+        from_amount: amount,
+        to_token: token,
+        to_amount: amount,
+        fee: amount * 0.001,
+        status: 'completed',
+        usd_value: amount * tokenPrices[token]
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wallets'] });
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      toast.success('Funds received successfully');
-      setShowReceiveDialog(false);
-      setReceiveAmount('');
+      toast.success('Transaction sent successfully');
+      setShowSendDialog(false);
+      setSendAmount('');
+      setRecipientAddress('');
       setSelectedToken(null);
     },
     onError: (error) => {
@@ -154,136 +122,21 @@ export default function Portfolio() {
     }
   });
 
-  // Send transaction mutation with notification trigger
-   const sendMutation = useMutation({
-     mutationFn: async ({ token, amount, recipient, walletType, network = 'ethereum' }) => {
-       console.log('sendMutation.mutationFn called with:', { token, amount, recipient, network });
-       if (!currentWallet) throw new Error('No wallet found');
-       if (!currentWallet.encrypted_private_key) throw new Error('This wallet does not support sending');
-      
-      const currentBalance = balances[token] || 0;
-      if (currentBalance < amount) throw new Error('Insufficient balance');
-
-      try {
-        const decryptedKey = decryptPrivateKey(currentWallet.encrypted_private_key);
-        let txHash;
-
-        // Route to appropriate blockchain network
-        if (network.toLowerCase() === 'bitcoin' || token === 'BTC') {
-          txHash = await sendBitcoinTransaction(decryptedKey, recipient, amount);
-        } else if (network.toLowerCase() === 'solana' || token === 'SOL') {
-          txHash = await sendSolanaTransaction(decryptedKey, recipient, amount);
-        } else {
-          // Default to Ethereum
-          txHash = await sendEthereumTransaction(decryptedKey, recipient, amount.toString());
-        }
-
-        // Update wallet balance
-        const newBalance = currentBalance - amount;
-        await base44.entities.Wallet.update(currentWallet.id, {
-          balances: {
-            ...balances,
-            [token]: newBalance
-          },
-          total_usd_value: Object.entries(balances).reduce((sum, [key, bal]) => {
-            const price = tokenPrices[key] || 0;
-            const newBal = key === token ? newBalance : bal;
-            return sum + (newBal * price);
-          }, 0)
-        });
-
-        // Record transaction
-        const transaction = await base44.entities.Transaction.create({
-          user_id: user.id,
-          type: 'transfer_out',
-          from_token: token,
-          from_amount: amount,
-          to_token: token,
-          to_amount: amount,
-          fee: amount * 0.001,
-          status: 'completed',
-          usd_value: amount * (tokenPrices[token] || 0),
-          tx_hash: txHash,
-          network: network
-        });
-
-        // Trigger transaction notification
-        if (notificationPreferences.length > 0) {
-          await notificationManager.checkTransactionStatus([transaction], user, notificationPreferences);
-        }
-
-        return txHash;
-      } catch (error) {
-        throw error;
-      }
-    },
-    onSuccess: () => {
-       console.log('Send transaction success');
-       queryClient.invalidateQueries({ queryKey: ['wallets'] });
-       queryClient.invalidateQueries({ queryKey: ['transactions'] });
-       toast.success('Transaction sent successfully');
-       setShowSendDialog(false);
-       setSendAmount('');
-       setRecipientAddress('');
-       setSelectedToken(null);
-     },
-     onError: (error) => {
-       console.error('Send transaction error:', error);
-       toast.error(error.message || 'Transaction failed');
-     }
-    });
-
   const handleSend = () => {
-    toast.loading('Validating transaction...');
-
-    if (!currentWallet) {
-      toast.error('No wallet configured. Please import a wallet first.');
-      return;
-    }
     if (!selectedToken || !sendAmount || !recipientAddress) {
       toast.error('Please fill all fields');
       return;
     }
-    if (!currentWallet.encrypted_private_key) {
-      toast.error('This wallet does not support sending');
-      return;
-    }
-
-    // Determine network based on token
-    let network = 'ethereum';
-    if (selectedToken.symbol === 'BTC') network = 'bitcoin';
-    else if (selectedToken.symbol === 'SOL') network = 'solana';
-
-    toast.success('Sending ' + sendAmount + ' ' + selectedToken.symbol + '...');
-
     sendMutation.mutate({
       token: selectedToken.symbol,
       amount: parseFloat(sendAmount),
-      recipient: recipientAddress,
-      walletType: currentWallet.wallet_type,
-      network: network
+      recipient: recipientAddress
     });
   };
 
   const openSendDialog = (token) => {
     setSelectedToken(token);
     setShowSendDialog(true);
-  };
-
-  const openReceiveDialog = (token) => {
-    setSelectedToken(token);
-    setShowReceiveDialog(true);
-  };
-
-  const handleReceive = () => {
-    if (!selectedToken || !receiveAmount) {
-      toast.error('Please enter an amount');
-      return;
-    }
-    receiveMutation.mutate({
-      token: selectedToken.symbol,
-      amount: parseFloat(receiveAmount)
-    });
   };
 
   const handleRefresh = async () => {
@@ -314,13 +167,6 @@ export default function Portfolio() {
                 <h1 className="text-2xl font-bold text-white select-none">{user?.full_name || 'Crypto Trader'}</h1>
               </div>
               <div className="flex items-center gap-3 select-none">
-                <WalletManager
-                  wallets={wallets}
-                  user={user}
-                  selectedWalletId={selectedWalletId}
-                  onSelectWallet={setSelectedWalletId}
-                  onAddWallet={() => setShowImport(true)}
-                />
                 <button 
                   onClick={() => setShowBalance(!showBalance)}
                   className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none"
@@ -355,22 +201,13 @@ export default function Portfolio() {
                 </div>
             </motion.div>
 
-        {/* Advanced Chart */}
+        {/* Portfolio Chart */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <AdvancedChart totalValue={totalValue} />
-        </motion.div>
-
-        {/* P&L Tracker */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12 }}
-        >
-          <PLTracker wallets={wallets} />
+          <PortfolioChart totalValue={showBalance ? totalValue : 0} />
         </motion.div>
 
         {/* Security Monitor */}
@@ -416,33 +253,6 @@ export default function Portfolio() {
           transition={{ delay: 0.25 }}
         >
           <RewardsSystem />
-        </motion.div>
-
-        {/* Last Transaction Details */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.26 }}
-        >
-          <LastTransactionDetails user={user} />
-        </motion.div>
-
-        {/* Transaction History */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.27 }}
-        >
-          <TransactionHistory user={user} wallets={wallets} selectedWalletId={selectedWalletId} />
-        </motion.div>
-
-        {/* Tax Report */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.29 }}
-        >
-          <TaxReport user={user} />
         </motion.div>
 
         {/* Token Holdings */}
@@ -504,10 +314,8 @@ export default function Portfolio() {
       <PrivateKeyImport
         isOpen={showImport}
         onClose={() => setShowImport(false)}
-        user={user}
-        onImport={() => {
-          queryClient.invalidateQueries({ queryKey: ['wallets'] });
-          toast.success('Wallets imported successfully');
+        onImport={(wallets) => {
+          console.log('Imported wallets:', wallets);
         }}
       />
 
@@ -530,14 +338,6 @@ export default function Portfolio() {
             <DialogTitle className="text-white">Send {selectedToken?.symbol}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-4">
-            <div>
-              <Label className="text-white/70">From Wallet</Label>
-              <p className="text-white/90 text-sm mt-1">{currentWallet?.wallet_name}</p>
-              <p className="text-white/50 text-xs font-mono">
-                {currentWallet?.wallet_address?.slice(0, 10)}...{currentWallet?.wallet_address?.slice(-8)}
-              </p>
-            </div>
-
             <div>
               <Label className="text-white/70">Available Balance</Label>
               <p className="text-2xl font-bold text-white mt-1">
@@ -595,58 +395,7 @@ export default function Portfolio() {
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500"
               style={{ minHeight: '44px' }}
             >
-              {sendMutation.isPending ? 'Processing...' : 'Send Transaction'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Receive Token Dialog */}
-      <Dialog open={showReceiveDialog} onOpenChange={setShowReceiveDialog}>
-        <DialogContent className="bg-gray-900 border-white/20">
-          <DialogHeader>
-            <DialogTitle className="text-white">Receive {selectedToken?.symbol}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div>
-              <Label className="text-white/70">To Wallet</Label>
-              <p className="text-white/90 text-sm mt-1">{currentWallet?.wallet_name}</p>
-              <div className="bg-white/5 border border-white/10 rounded-lg p-3 mt-2">
-                <p className="text-white text-xs font-mono break-all">
-                  {currentWallet?.wallet_address}
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-white/70">Amount to Receive</Label>
-              <Input
-                type="number"
-                value={receiveAmount}
-                onChange={(e) => setReceiveAmount(e.target.value)}
-                placeholder="0.00"
-                className="bg-white/5 border-white/10 text-white mt-2"
-              />
-              {receiveAmount && (
-                <p className="text-white/50 text-sm mt-1">
-                  ≈ ${(parseFloat(receiveAmount || 0) * selectedToken?.price).toFixed(2)}
-                </p>
-              )}
-            </div>
-
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-              <p className="text-blue-400 text-sm">
-                Send {selectedToken?.symbol} to the address above. This is a simulation for testing.
-              </p>
-            </div>
-
-            <Button
-              onClick={handleReceive}
-              disabled={receiveMutation.isPending || !receiveAmount}
-              className="w-full bg-gradient-to-r from-emerald-500 to-teal-500"
-              style={{ minHeight: '44px' }}
-            >
-              {receiveMutation.isPending ? 'Processing...' : 'Confirm Receipt'}
+              {sendMutation.isPending ? 'Sending...' : 'Send Transaction'}
             </Button>
           </div>
         </DialogContent>
