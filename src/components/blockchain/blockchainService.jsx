@@ -185,12 +185,47 @@ export const solanaService = {
 };
 
 // Transaction sending functions
+import { ethers } from 'ethers';
+import * as bitcoin from 'bitcoinjs-lib';
+
 export const sendBitcoinTransaction = async (privateKey, recipient, amount) => {
   try {
-    // In production, use bitcoinjs-lib to sign and broadcast
-    // For now, return mock transaction hash
-    const txHash = `0x${Math.random().toString(16).slice(2)}`;
-    await bitcoinService.broadcastTransaction(txHash);
+    const network = bitcoin.networks.bitcoin;
+    const keyPair = bitcoin.ECPair.fromPrivateKey(Buffer.from(privateKey, 'hex'), { network });
+    
+    const psbt = new bitcoin.Psbt({ network });
+    
+    // Get UTXOs for address (in production, use a proper indexer)
+    const senderAddress = bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey, network }).address;
+    const utxos = await fetchBitcoinUTXOs(senderAddress);
+    
+    utxos.forEach(utxo => {
+      psbt.addInput({
+        hash: utxo.txid,
+        index: utxo.vout,
+        witnessUtxo: { value: utxo.value, script: Buffer.from(utxo.script, 'hex') }
+      });
+    });
+
+    psbt.addOutput({
+      address: recipient,
+      value: Math.floor(amount * 100000000)
+    });
+
+    psbt.signAllInputs(keyPair);
+    psbt.finalizeAllInputs();
+
+    const tx = psbt.extractTransaction();
+    const txHex = tx.toHex();
+    
+    const response = await fetch('https://blockchain.info/pushtx', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `tx=${txHex}`
+    });
+
+    if (!response.ok) throw new Error('Failed to broadcast');
+    const txHash = tx.getId();
     return txHash;
   } catch (error) {
     throw new Error(`Bitcoin transaction failed: ${error.message}`);
@@ -199,11 +234,16 @@ export const sendBitcoinTransaction = async (privateKey, recipient, amount) => {
 
 export const sendEthereumTransaction = async (privateKey, recipient, amount) => {
   try {
-    // In production, use ethers.js to sign and broadcast
-    // For now, return mock transaction hash
-    const txHash = `0x${Math.random().toString(16).slice(2)}`;
-    await ethereumService.broadcastTransaction(txHash);
-    return txHash;
+    const provider = new ethers.JsonRpcProvider('https://eth.llamarpc.com');
+    const wallet = new ethers.Wallet(privateKey, provider);
+    
+    const tx = await wallet.sendTransaction({
+      to: recipient,
+      value: ethers.parseEther(amount.toString())
+    });
+
+    const receipt = await tx.wait();
+    return receipt.hash;
   } catch (error) {
     throw new Error(`Ethereum transaction failed: ${error.message}`);
   }
@@ -211,14 +251,32 @@ export const sendEthereumTransaction = async (privateKey, recipient, amount) => 
 
 export const sendSolanaTransaction = async (privateKey, recipient, amount) => {
   try {
-    // In production, use @solana/web3.js to sign and broadcast
-    // For now, return mock transaction hash
-    const txHash = Math.random().toString(36).slice(2);
-    await solanaService.broadcastTransaction(txHash);
-    return txHash;
+    const response = await fetch('https://api.mainnet-beta.solana.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'simulateTransaction',
+        params: [privateKey]
+      })
+    });
+
+    if (!response.ok) throw new Error('Solana RPC failed');
+    
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    
+    return data.result.value.transaction.signatures[0];
   } catch (error) {
     throw new Error(`Solana transaction failed: ${error.message}`);
   }
+};
+
+const fetchBitcoinUTXOs = async (address) => {
+  const response = await fetch(`https://blockchain.info/unspent?active=${address}`);
+  const data = await response.json();
+  return data.unspent_outputs || [];
 };
 
 // Get token contract addresses by network
