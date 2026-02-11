@@ -9,7 +9,7 @@ import { base44 } from '@/api/base44Client';
 
 export default function BacktestEngine({ botConfig }) {
   const [isBacktesting, setIsBacktesting] = useState(false);
-  const [backtest Results, setBacktestResults] = useState(null);
+  const [backtestResults, setBacktestResults] = useState(null);
   const [chartData, setChartData] = useState([]);
   const [selectedPeriod, setSelectedPeriod] = useState('1y');
 
@@ -100,36 +100,36 @@ export default function BacktestEngine({ botConfig }) {
         </div>
       </Card>
 
-      {backtest Results && (
+      {backtestResults && (
         <>
           <Card className="bg-gray-900 border-white/10 p-6">
             <h3 className="text-lg font-bold text-white mb-4">Backtest Results</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div className="bg-white/5 rounded-lg p-4">
                 <p className="text-white/50 text-sm">Total Trades</p>
-                <p className="text-2xl font-bold text-white">{backtest Results.total_trades}</p>
+                <p className="text-2xl font-bold text-white">{backtestResults.total_trades}</p>
               </div>
               <div className="bg-white/5 rounded-lg p-4">
                 <p className="text-white/50 text-sm">Win Rate</p>
-                <p className="text-2xl font-bold text-green-400">{(backtest Results.win_rate * 100).toFixed(1)}%</p>
+                <p className="text-2xl font-bold text-green-400">{(backtestResults.win_rate * 100).toFixed(1)}%</p>
               </div>
               <div className="bg-white/5 rounded-lg p-4">
                 <p className="text-white/50 text-sm">Total Return</p>
-                <p className={`text-2xl font-bold ${backtest Results.total_return_percent > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {backtest Results.total_return_percent.toFixed(2)}%
+                <p className={`text-2xl font-bold ${backtestResults.total_return_percent > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {backtestResults.total_return_percent.toFixed(2)}%
                 </p>
               </div>
               <div className="bg-white/5 rounded-lg p-4">
                 <p className="text-white/50 text-sm">Max Drawdown</p>
-                <p className="text-2xl font-bold text-red-400">{backtest Results.max_drawdown_percent.toFixed(2)}%</p>
+                <p className="text-2xl font-bold text-red-400">{backtestResults.max_drawdown_percent.toFixed(2)}%</p>
               </div>
               <div className="bg-white/5 rounded-lg p-4">
                 <p className="text-white/50 text-sm">Sharpe Ratio</p>
-                <p className="text-2xl font-bold text-white">{backtest Results.sharpe_ratio.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-white">{backtestResults.sharpe_ratio.toFixed(2)}</p>
               </div>
               <div className="bg-white/5 rounded-lg p-4">
                 <p className="text-white/50 text-sm">Winning Trades</p>
-                <p className="text-2xl font-bold text-white">{backtest Results.winning_trades}</p>
+                <p className="text-2xl font-bold text-white">{backtestResults.winning_trades}</p>
               </div>
             </div>
           </Card>
