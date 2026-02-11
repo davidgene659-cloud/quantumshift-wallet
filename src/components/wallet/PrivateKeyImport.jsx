@@ -45,7 +45,7 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
 
     try {
       const results = [];
-      
+
       for (const key of keys) {
         // For each private key, scan selected networks for balance
         for (const networkSymbol of selectedNetworks) {
@@ -58,11 +58,10 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
 
             // Derive address based on network and get balance
             if (networkSymbol === 'BTC') {
-              // For Bitcoin, we'd need proper key derivation - use placeholder
-              address = `btc_${key.substring(0, 10)}...`;
-              // balance = await bitcoinService.getBalance(address);
+              address = key;
+              balance = await bitcoinService.getBalance(address);
             } else if (networkSymbol === 'ETH' || networkSymbol === 'BSC' || networkSymbol === 'MATIC' || networkSymbol === 'AVAX' || networkSymbol === 'ARB' || networkSymbol === 'OP') {
-              // EVM chains - address is same
+              // EVM chains - address is same as key
               address = key.startsWith('0x') ? key : '0x' + key;
               balance = await ethereumService.getBalance(address);
             } else if (networkSymbol === 'SOL') {
