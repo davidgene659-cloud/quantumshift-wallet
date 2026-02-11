@@ -6,6 +6,7 @@ import { createPageUrl } from '@/utils';
 import { Sparkles, Shield, TrendingUp, Zap, Brain, Target } from 'lucide-react';
 import SecurityMonitor from '@/components/ai/SecurityMonitor';
 import CrossChainAssistant from '@/components/ai/CrossChainAssistant';
+import HuggingFaceIntegration from '@/components/ai/HuggingFaceIntegration';
 import AIChatbot from '@/components/chat/AIChatbot';
 
 export default function AIHub() {
@@ -83,6 +84,9 @@ export default function AIHub() {
 
         {/* Cross-Chain Assistant */}
         <CrossChainAssistant />
+
+        {/* Hugging Face Integration */}
+        <HuggingFaceIntegration />
 
         {/* AI Insights */}
         <Card className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 border-purple-500/30">
