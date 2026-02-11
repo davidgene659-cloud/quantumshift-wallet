@@ -274,15 +274,15 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
             </Button>
           )}
 
-          {/* Scan Results */}
-          {scanResults.length > 0 && (
+          {/* Import Results */}
+          {importResults.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-white font-semibold">Found Wallets</h4>
-                <span className="text-emerald-400 text-sm">{scanResults.length} wallets</span>
+                <h4 className="text-white font-semibold">Ready to Import</h4>
+                <span className="text-emerald-400 text-sm">{importResults.length} wallets</span>
               </div>
               <div className="space-y-2 max-h-64 overflow-y-auto">
-                {scanResults.map((result, i) => (
+                {importResults.map((result, i) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, y: 10 }}
@@ -312,7 +312,7 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4 mr-2" />
-                    Import {scanResults.length} Wallets
+                    Import {importResults.length} Wallets
                   </>
                 )}
               </Button>
