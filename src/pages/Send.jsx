@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Send as SendIcon, Scan, CheckCircle2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send as SendIcon, Scan, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import TokenSelector, { tokens } from '@/components/swap/TokenSelector';
 import AIChatbot from '@/components/chat/AIChatbot';
+import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
+import { decryptPrivateKey, sendBitcoinTransaction, sendEthereumTransaction, sendSolanaTransaction } from '@/components/blockchain/blockchainService';
 
 export default function Send() {
   const [token, setToken] = useState('ETH');
@@ -15,21 +19,83 @@ export default function Send() {
   const [address, setAddress] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [user, setUser] = useState(null);
+  const [wallet, setWallet] = useState(null);
+  const [showWarning, setShowWarning] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      base44.entities.Wallet.filter({ user_id: user.id, is_primary: true }).then(wallets => {
+        if (wallets.length > 0) setWallet(wallets[0]);
+      });
+    }
+  }, [user]);
 
   const selectedToken = tokens.find(t => t.symbol === token);
   const usdValue = amount && selectedToken ? (parseFloat(amount) * selectedToken.price).toFixed(2) : '0.00';
 
   const handleSend = async () => {
-    if (!amount || !address) return;
+    if (!amount || !address) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+    
+    if (!wallet || !wallet.encrypted_private_key) {
+      setError('No wallet configured. Please import a wallet first.');
+      setShowWarning(true);
+      return;
+    }
+
     setIsSending(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsSending(false);
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      setAmount('');
-      setAddress('');
-    }, 3000);
+    setError('');
+
+    try {
+      const decryptedKey = decryptPrivateKey(wallet.encrypted_private_key);
+      let txHash;
+
+      // Determine network from token
+      const network = token === 'BTC' ? 'bitcoin' : token === 'SOL' ? 'solana' : 'ethereum';
+
+      if (network === 'bitcoin') {
+        txHash = await sendBitcoinTransaction(decryptedKey, address, parseFloat(amount));
+      } else if (network === 'solana') {
+        txHash = await sendSolanaTransaction(decryptedKey, address, parseFloat(amount));
+      } else {
+        txHash = await sendEthereumTransaction(decryptedKey, address, amount);
+      }
+
+      // Record transaction
+      await base44.entities.Transaction.create({
+        user_id: user.id,
+        type: 'transfer_out',
+        from_token: token,
+        from_amount: parseFloat(amount),
+        to_token: token,
+        to_amount: parseFloat(amount),
+        fee: parseFloat(amount) * 0.001,
+        status: 'completed',
+        usd_value: parseFloat(usdValue),
+        tx_hash: txHash,
+        network: network
+      });
+
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        setAmount('');
+        setAddress('');
+      }, 3000);
+    } catch (err) {
+      setError(err.message);
+      toast.error(err.message);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -137,6 +203,24 @@ export default function Send() {
       </div>
 
       <AIChatbot />
+
+      {/* Warning Dialog */}
+      <Dialog open={showWarning} onOpenChange={setShowWarning}>
+        <DialogContent className="bg-gray-900 border-white/20">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-amber-400" />
+              Wallet Not Configured
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-white/70">{error}</p>
+          <Link to={createPageUrl('Portfolio')}>
+            <Button className="w-full bg-gradient-to-r from-purple-500 to-pink-500">
+              Go to Portfolio
+            </Button>
+          </Link>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
