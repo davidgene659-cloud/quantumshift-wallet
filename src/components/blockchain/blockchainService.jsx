@@ -44,17 +44,26 @@ export const bitcoinService = {
   }
 };
 
-// Ethereum (using backend LLM integration to bypass CORS)
+// Ethereum (using Ankr RPC - supports CORS)
 export const ethereumService = {
   async getBalance(address) {
     try {
-      const { base44 } = await import('@/api/base44Client');
-      const response = await base44.integrations.Core.InvokeLLM({
-        prompt: `Get the ETH balance for Ethereum address ${address}. Use web search if needed to find current balance. Return ONLY the number (e.g., 1.5, 0.025, etc)`,
-        add_context_from_internet: true
+      const response = await fetch('https://rpc.ankr.com/eth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_getBalance',
+          params: [address, 'latest'],
+          id: 1
+        })
       });
-      const balance = parseFloat(response);
-      return isNaN(balance) ? 0 : balance;
+      const data = await response.json();
+      if (data.result) {
+        const weiBalance = BigInt(data.result);
+        return Number(weiBalance) / 1e18; // Convert to ETH
+      }
+      return 0;
     } catch (error) {
       console.error('Failed to fetch ETH balance:', error);
       return 0;
