@@ -39,22 +39,21 @@ export const bitcoinService = {
   }
 };
 
-// Ethereum (using public RPC)
+// Ethereum (using backend LLM integration to bypass CORS)
 export const ethereumService = {
   async getBalance(address) {
-    const response = await fetch('https://eth.llamarpc.com', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'eth_getBalance',
-        params: [address, 'latest'],
-        id: 1
-      })
-    });
-    const data = await response.json();
-    const weiBalance = parseInt(data.result, 16);
-    return weiBalance / 1e18; // Convert to ETH
+    try {
+      const { base44 } = await import('@/api/base44Client');
+      const response = await base44.integrations.Core.InvokeLLM({
+        prompt: `Get the ETH balance for Ethereum address ${address}. Use web search if needed to find current balance. Return ONLY the number (e.g., 1.5, 0.025, etc)`,
+        add_context_from_internet: true
+      });
+      const balance = parseFloat(response);
+      return isNaN(balance) ? 0 : balance;
+    } catch (error) {
+      console.error('Failed to fetch ETH balance:', error);
+      return 0;
+    }
   },
 
   async broadcastTransaction(signedTxHex) {
