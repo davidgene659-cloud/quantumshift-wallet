@@ -334,11 +334,11 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
             </Button>
           )}
 
-          {/* Import Results */}
+          {/* Scan Results */}
           {importResults.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-white font-semibold">Ready to Import</h4>
+                <h4 className="text-white font-semibold">Found Wallets</h4>
                 <span className="text-emerald-400 text-sm">{importResults.length} wallets</span>
               </div>
               <div className="space-y-2 max-h-64 overflow-y-auto">
