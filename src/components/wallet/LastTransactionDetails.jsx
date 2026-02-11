@@ -37,6 +37,18 @@ export default function LastTransactionDetails({ user }) {
 
   const lastTx = transactions[0];
 
+  // Poll for transaction status updates
+  const { data: txStatus } = useQuery({
+    queryKey: ['tx-status', lastTx?.tx_hash],
+    queryFn: async () => {
+      if (!lastTx?.tx_hash) return null;
+      // In production, fetch real tx status from blockchain
+      return { confirmations: lastTx.confirmations || 0 };
+    },
+    enabled: !!lastTx?.tx_hash && lastTx?.status === 'pending',
+    refetchInterval: 10000, // Check every 10 seconds
+  });
+
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     toast.success('Copied to clipboard');
@@ -61,8 +73,10 @@ export default function LastTransactionDetails({ user }) {
     );
   }
 
-  const mockTxHash = `${lastTx.id.substring(0, 8)}...${lastTx.id.substring(lastTx.id.length - 8)}`;
-  const explorerUrl = getExplorerUrl(lastTx.from_token, lastTx.id);
+  const displayTxHash = lastTx.tx_hash || lastTx.id;
+  const shortTxHash = `${displayTxHash.substring(0, 8)}...${displayTxHash.substring(displayTxHash.length - 8)}`;
+  const explorerUrl = getExplorerUrl(lastTx.network || lastTx.from_token, displayTxHash);
+  const isRealTx = !!lastTx.tx_hash;
 
   return (
     <motion.div
@@ -129,17 +143,27 @@ export default function LastTransactionDetails({ user }) {
 
         {/* Transaction Hash */}
         <div className="flex justify-between items-center">
-          <span className="text-white/50 text-sm">Transaction ID</span>
+          <span className="text-white/50 text-sm">Transaction {isRealTx ? 'Hash' : 'ID'}</span>
           <div className="flex items-center gap-2">
-            <span className="text-white/70 text-sm font-mono">{mockTxHash}</span>
+            <span className="text-white/70 text-sm font-mono">{shortTxHash}</span>
             <button
-              onClick={() => copyToClipboard(lastTx.id)}
+              onClick={() => copyToClipboard(displayTxHash)}
               className="p-1 hover:bg-white/10 rounded transition-colors"
             >
               <Copy className="w-3 h-3 text-white/50" />
             </button>
           </div>
         </div>
+
+        {/* Confirmations (if real tx) */}
+        {isRealTx && (
+          <div className="flex justify-between items-center">
+            <span className="text-white/50 text-sm">Confirmations</span>
+            <span className="text-white font-medium">
+              {txStatus?.confirmations || lastTx.confirmations || 0}
+            </span>
+          </div>
+        )}
 
         {/* Timestamp */}
         <div className="flex justify-between items-center">
@@ -150,30 +174,46 @@ export default function LastTransactionDetails({ user }) {
         </div>
 
         {/* Blockchain Explorer Link */}
-        <div className="pt-4 border-t border-white/10">
-          <Button
-            onClick={() => window.open(explorerUrl, '_blank')}
-            variant="outline"
-            className="w-full border-white/20 text-white hover:bg-white/10"
-          >
-            <ExternalLink className="w-4 h-4 mr-2" />
-            View on {lastTx.from_token} Explorer
-          </Button>
-        </div>
+        {isRealTx && (
+          <div className="pt-4 border-t border-white/10">
+            <Button
+              onClick={() => window.open(explorerUrl, '_blank')}
+              variant="outline"
+              className="w-full border-white/20 text-white hover:bg-white/10"
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              View on {lastTx.network || lastTx.from_token} Explorer
+            </Button>
+          </div>
+        )}
 
         {/* Real-time Status Badge */}
-        {lastTx.status === 'completed' && (
+        {lastTx.status === 'completed' && isRealTx && (
           <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
             <p className="text-emerald-400 text-sm font-medium">
-              ✓ Transaction broadcast successfully to {lastTx.from_token} mainnet
+              ✓ Transaction confirmed on {lastTx.network || lastTx.from_token} mainnet
+            </p>
+            <p className="text-emerald-400/70 text-xs mt-1">
+              {txStatus?.confirmations || lastTx.confirmations || 0} confirmations
             </p>
           </div>
         )}
 
-        {lastTx.status === 'pending' && (
+        {lastTx.status === 'pending' && isRealTx && (
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
             <p className="text-amber-400 text-sm font-medium">
-              ⏳ Broadcasting to {lastTx.from_token} mainnet...
+              ⏳ Waiting for confirmations on {lastTx.network || lastTx.from_token} mainnet...
+            </p>
+            <p className="text-amber-400/70 text-xs mt-1">
+              {txStatus?.confirmations || lastTx.confirmations || 0} confirmations
+            </p>
+          </div>
+        )}
+
+        {!isRealTx && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+            <p className="text-blue-400 text-sm font-medium">
+              ℹ️ Demo transaction - Not broadcast to blockchain
             </p>
           </div>
         )}
