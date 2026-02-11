@@ -76,7 +76,7 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
       return;
     }
 
-    if (scanResults.length === 0) {
+    if (importResults.length === 0) {
       toast.error('No wallets to import');
       return;
     }
@@ -84,18 +84,10 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
     setIsImporting(true);
 
     try {
-      // Create a map of address -> private key for easy lookup
-      const addressToKeyMap = {};
-      scanResults.forEach(result => {
-        if (result.key) {
-          addressToKeyMap[result.address] = result.key;
-        }
-      });
-
       // Group wallets by network and consolidate balances
       const consolidatedWallets = {};
       
-      scanResults.forEach(result => {
+      importResults.forEach(result => {
         const key = `${result.network}_${result.address}`;
         if (!consolidatedWallets[key]) {
           consolidatedWallets[key] = {
@@ -145,9 +137,9 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
       }
 
       toast.success(`Successfully imported ${imported} wallet(s)`);
-      onImport?.(scanResults);
+      onImport?.(importResults);
       setPrivateKeys('');
-      setScanResults([]);
+      setImportResults([]);
       setImportType('private_key');
       setIsImporting(false);
       onClose();
