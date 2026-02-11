@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
   Wallet, 
@@ -16,7 +16,9 @@ import {
   BookOpen,
   Heart,
   Brain,
-  Image
+  Image,
+  ArrowLeft,
+  Menu
 } from 'lucide-react';
 
 const navItems = [
@@ -41,10 +43,16 @@ const secondaryNavItems = [
 
 export default function Layout({ children }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const currentPath = location.pathname;
   const scrollPositions = useRef({});
   const contentRef = useRef(null);
 
+  // Root pages that show logo instead of back button
+  const rootPages = ['Portfolio', 'Swap', 'TradingBots', 'CloudMining', 'DApps', 'Casinos', 'Poker', 'Banking', 'Analytics', 'AIHub', 'NFTs', 'VirtualCard', 'Education', 'Legacy'];
+  const isRootPage = rootPages.some(page => currentPath.includes(page));
+
+  // State preservation
   useEffect(() => {
     if (contentRef.current) {
       const savedPosition = scrollPositions.current[currentPath] || 0;
@@ -64,6 +72,14 @@ export default function Layout({ children }) {
     return () => contentEl?.removeEventListener('scroll', handleScroll);
   }, [currentPath]);
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate(createPageUrl('Portfolio'));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-950" style={{ 
       overscrollBehaviorY: 'none',
@@ -72,7 +88,43 @@ export default function Layout({ children }) {
       paddingLeft: 'max(env(safe-area-inset-left), 0px)',
       paddingRight: 'max(env(safe-area-inset-right), 0px)'
     }}>
-      <div ref={contentRef} style={{ height: '100vh', overflow: 'auto' }}>
+      {/* Mobile Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-xl border-b border-white/10 md:hidden" style={{
+        paddingTop: 'max(env(safe-area-inset-top), 0px)',
+        minHeight: '60px'
+      }}>
+        <div className="flex items-center justify-between px-4 h-14">
+          {isRootPage ? (
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                <Wallet className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-white font-bold text-lg">QuantumShift</span>
+            </div>
+          ) : (
+            <button
+              onClick={handleBack}
+              className="flex items-center gap-2 text-white hover:text-purple-400 transition-colors"
+              style={{ minHeight: '44px', minWidth: '44px' }}
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          <button className="p-2 rounded-xl hover:bg-white/10 transition-colors" style={{ minHeight: '44px', minWidth: '44px' }}>
+            <Menu className="w-5 h-5 text-white" />
+          </button>
+        </div>
+      </header>
+
+      <div 
+        ref={contentRef} 
+        style={{ 
+          height: '100vh', 
+          overflow: 'auto',
+          paddingTop: '60px' 
+        }}
+        className="md:pt-0"
+      >
         {children}
       </div>
       
@@ -81,7 +133,7 @@ export default function Layout({ children }) {
         paddingBottom: 'max(env(safe-area-inset-bottom), 0px)'
       }}>
         <div className="overflow-x-auto">
-          <div className="flex justify-start items-center px-2 gap-1" style={{ minHeight: '64px', minWidth: 'max-content' }}>
+          <div className="flex justify-start items-center px-2 gap-1" style={{ minHeight: '68px', minWidth: 'max-content' }}>
             {[...navItems, ...secondaryNavItems].map((item) => {
               const isActive = currentPath.includes(item.page);
               const Icon = typeof item.icon === 'string' ? 
@@ -91,10 +143,10 @@ export default function Layout({ children }) {
                 <Link
                   key={item.page}
                   to={createPageUrl(item.page)}
-                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all select-none flex-shrink-0 ${
-                    isActive ? 'text-purple-400' : 'text-white/50 hover:text-white/70'
+                  className={`flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl transition-all select-none flex-shrink-0 ${
+                    isActive ? 'text-purple-400 bg-purple-500/10' : 'text-white/50 hover:text-white/70'
                   }`}
-                  style={{ minWidth: '64px', minHeight: '44px' }}
+                  style={{ minWidth: '68px', minHeight: '52px' }}
                 >
                   <Icon className="w-5 h-5" />
                   <span className="text-xs font-medium whitespace-nowrap">{item.label}</span>

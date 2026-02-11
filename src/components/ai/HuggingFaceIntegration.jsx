@@ -6,6 +6,7 @@ import { Bot, ExternalLink, Sparkles, CheckCircle2, AlertCircle, Settings, Trend
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MobileSelect } from '@/components/ui/mobile-select';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { base44 } from '@/api/base44Client';
@@ -285,17 +286,18 @@ export default function HuggingFaceIntegration() {
             <TabsContent value="trading" className="space-y-4 mt-4">
               <div>
                 <label className="text-white text-sm font-medium mb-2 block">Trading Style</label>
-                <Select value={tradingStyle} onValueChange={setTradingStyle}>
-                  <SelectTrigger className="bg-white/5 border-white/10 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="conservative">Conservative</SelectItem>
-                    <SelectItem value="balanced">Balanced</SelectItem>
-                    <SelectItem value="aggressive">Aggressive</SelectItem>
-                    <SelectItem value="custom">Custom</SelectItem>
-                  </SelectContent>
-                </Select>
+                <MobileSelect
+                  value={tradingStyle}
+                  onValueChange={setTradingStyle}
+                  options={[
+                    { value: 'conservative', label: 'Conservative' },
+                    { value: 'balanced', label: 'Balanced' },
+                    { value: 'aggressive', label: 'Aggressive' },
+                    { value: 'custom', label: 'Custom' }
+                  ]}
+                  placeholder="Select trading style"
+                  className="bg-white/5 border-white/10 text-white"
+                />
               </div>
 
               <div>
