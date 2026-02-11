@@ -236,11 +236,15 @@ export default function Portfolio() {
   const handleSend = () => {
     toast.loading('Validating transaction...');
 
+    if (!currentWallet) {
+      toast.error('No wallet configured. Please import a wallet first.');
+      return;
+    }
     if (!selectedToken || !sendAmount || !recipientAddress) {
       toast.error('Please fill all fields');
       return;
     }
-    if (!currentWallet?.encrypted_private_key) {
+    if (!currentWallet.encrypted_private_key) {
       toast.error('This wallet does not support sending');
       return;
     }
