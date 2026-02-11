@@ -129,16 +129,72 @@ export const getBalance = async (address, network) => {
   }
 };
 
-// Get token contract addresses
+// Solana
+export const solanaService = {
+  async getBalance(address) {
+    const response = await fetch('https://api.mainnet-beta.solana.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'getBalance',
+        params: [address],
+        id: 1
+      })
+    });
+    const data = await response.json();
+    return (data.result?.value || 0) / 1e9; // Convert lamports to SOL
+  },
+
+  async broadcastTransaction(signedTxHex) {
+    const response = await fetch('https://api.mainnet-beta.solana.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'sendTransaction',
+        params: [signedTxHex],
+        id: 1
+      })
+    });
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.result;
+  },
+
+  async getTransactionStatus(txHash) {
+    const response = await fetch('https://api.mainnet-beta.solana.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'getTransaction',
+        params: [txHash],
+        id: 1
+      })
+    });
+    const data = await response.json();
+    return {
+      confirmations: data.result ? 1 : 0,
+      status: data.result ? 'confirmed' : 'pending'
+    };
+  }
+};
+
+// Get token contract addresses by network
 export const TOKEN_CONTRACTS = {
-  USDT: '0xdac17f958d2ee523a2206206994597c13d831ec7',
-  USDC: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+  // Ethereum
+  USDT_ETH: '0xdac17f958d2ee523a2206206994597c13d831ec7',
+  USDC_ETH: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+  // Polygon
+  USDT_POLYGON: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f',
+  USDC_POLYGON: '0x2791bca1f2de4661ed88a30c99a7a9449aa84174',
 };
 
 export const getTokenBalance = async (address, token, network = 'ethereum') => {
   try {
     if (network.toLowerCase() === 'ethereum' || network.toLowerCase() === 'eth') {
-      const contract = TOKEN_CONTRACTS[token.toUpperCase()];
+      const contract = TOKEN_CONTRACTS[`${token.toUpperCase()}_ETH`];
       if (!contract) return 0;
       return await ethereumService.getTokenBalance(address, contract);
     }
@@ -147,4 +203,49 @@ export const getTokenBalance = async (address, token, network = 'ethereum') => {
     console.error(`Failed to fetch ${token} balance:`, error);
     return 0;
   }
+};
+
+// Real-time price feed using CoinGecko API (free, no auth required)
+export const priceService = {
+  async getPrices(tokenIds = []) {
+    try {
+      const ids = tokenIds.join(',');
+      const response = await fetch(
+        `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true`
+      );
+      return await response.json();
+    } catch (error) {
+      console.error('Failed to fetch prices:', error);
+      return {};
+    }
+  },
+
+  async getPriceChange(tokenId, days = 1) {
+    try {
+      const response = await fetch(
+        `https://api.coingecko.com/api/v3/coins/${tokenId}/market_chart?vs_currency=usd&days=${days}`
+      );
+      const data = await response.json();
+      return data.prices || [];
+    } catch (error) {
+      console.error('Failed to fetch price history:', error);
+      return [];
+    }
+  }
+};
+
+// Token ID mapping for CoinGecko API
+export const COINGECKO_IDS = {
+  BTC: 'bitcoin',
+  ETH: 'ethereum',
+  SOL: 'solana',
+  ADA: 'cardano',
+  USDT: 'tether',
+  USDC: 'usd-coin',
+  BNB: 'binancecoin',
+  DOGE: 'dogecoin',
+  MATIC: 'matic-network',
+  LINK: 'chainlink',
+  AVAX: 'avalanche-2',
+  DOT: 'polkadot'
 };
