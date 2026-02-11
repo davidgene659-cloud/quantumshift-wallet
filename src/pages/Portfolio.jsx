@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, Settings as SettingsIcon, Eye, EyeOff } from 'lucide-react';
+import { Bell, Settings as SettingsIcon, Eye, EyeOff, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import WalletDetails from '@/components/wallet/WalletDetails';
 import { createPageUrl } from '@/utils';
 import PortfolioChart from '@/components/wallet/PortfolioChart';
 import QuickActions from '@/components/wallet/QuickActions';
@@ -29,6 +31,7 @@ const mockTokens = [
 export default function Portfolio() {
   const [showBalance, setShowBalance] = useState(true);
   const [showImport, setShowImport] = useState(false);
+  const [showWalletDetails, setShowWalletDetails] = useState(false);
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -71,6 +74,13 @@ export default function Portfolio() {
                   style={{ minWidth: '44px', minHeight: '44px' }}
                 >
                   {showBalance ? <Eye className="w-5 h-5 text-white/70" /> : <EyeOff className="w-5 h-5 text-white/70" />}
+                </button>
+                <button 
+                  onClick={() => setShowWalletDetails(true)}
+                  className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none"
+                  style={{ minWidth: '44px', minHeight: '44px' }}
+                >
+                  <Info className="w-5 h-5 text-white/70" />
                 </button>
                 <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all relative select-none" style={{ minWidth: '44px', minHeight: '44px' }}>
                   <Bell className="w-5 h-5 text-white/70" />
@@ -187,6 +197,16 @@ export default function Portfolio() {
       />
 
       <AIChatbot />
+
+      {/* Wallet Details Dialog */}
+      <Dialog open={showWalletDetails} onOpenChange={setShowWalletDetails}>
+        <DialogContent className="bg-gray-900 border-white/20 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-white">Wallet Overview</DialogTitle>
+          </DialogHeader>
+          <WalletDetails />
+        </DialogContent>
+      </Dialog>
       </PullToRefresh>
       </motion.div>
       );
