@@ -88,7 +88,7 @@ export default function Portfolio() {
     symbol,
     balance: parseFloat(balance) || 0,
     price: tokenPrices[symbol] || 0,
-    change24h: (Math.random() * 10 - 5).toFixed(2) // Mock change
+    change24h: Math.random() * 10 - 5 // Mock change
   }));
 
   const totalValue = tokens.reduce((acc, t) => acc + (t.balance * t.price), 0);
