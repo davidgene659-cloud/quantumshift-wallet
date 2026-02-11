@@ -44,64 +44,35 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
       const results = [];
       for (const key of keys) {
         // Parse format: address:privateKey:network:balance
-        // or address:privateKey (defaults to ETH with mock balance)
         const parts = key.split(':');
         const address = parts[0]?.trim();
         const privateKey = parts[1]?.trim();
         const specifiedNetwork = parts[2]?.trim();
         const specifiedBalance = parts[3]?.trim();
 
-        if (!address || !privateKey) continue;
+        if (!address || !privateKey || !specifiedNetwork || !specifiedBalance) {
+          console.warn('Skipping invalid entry - must be address:privateKey:network:balance');
+          continue;
+        }
 
-        // If network and balance are specified, use them
-        if (specifiedNetwork && specifiedBalance) {
-          const networkObj = networks.find(n => 
-            n.symbol.toLowerCase() === specifiedNetwork.toLowerCase() ||
-            n.name.toLowerCase() === specifiedNetwork.toLowerCase()
-          );
-          
-          if (networkObj) {
-            results.push({
-              network: networkObj.name,
-              address: address,
-              balance: parseFloat(specifiedBalance).toFixed(6),
-              key: privateKey
-            });
-          }
-        } else {
-          // Try to fetch from blockchain for selected networks
-          for (const networkSymbol of selectedNetworks) {
-            try {
-              const networkObj = networks.find(n => n.symbol === networkSymbol);
-              const networkName = networkObj?.name || networkSymbol;
-
-              let balance = 0;
-              try {
-                balance = await getBalance(address, networkName);
-              } catch (error) {
-                // If blockchain fetch fails, use mock balance for demo
-                console.warn(`Could not fetch balance for ${networkName}, using mock`);
-                balance = Math.random() * 0.5 + 0.01;
-              }
-
-              if (balance > 0.001) {
-                results.push({
-                  network: networkName,
-                  address: address,
-                  balance: balance.toFixed(6),
-                  key: privateKey
-                });
-              }
-            } catch (error) {
-              console.error(`Failed to check ${networkSymbol}:`, error);
-            }
-          }
+        const networkObj = networks.find(n => 
+          n.symbol.toLowerCase() === specifiedNetwork.toLowerCase() ||
+          n.name.toLowerCase() === specifiedNetwork.toLowerCase()
+        );
+        
+        if (networkObj && parseFloat(specifiedBalance) > 0) {
+          results.push({
+            network: networkObj.name,
+            address: address,
+            balance: parseFloat(specifiedBalance).toFixed(6),
+            key: privateKey
+          });
         }
       }
 
       setScanResults(results);
       if (results.length === 0) {
-        toast.info('Enter format: address:privateKey:network:balance (e.g., 0x123:0xabc:ETH:1.5)');
+        toast.error('No valid entries. Format: address:privateKey:network:balance');
       }
     } catch (error) {
       console.error('Scan failed:', error);
