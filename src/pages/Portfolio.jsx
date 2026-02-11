@@ -27,11 +27,40 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { decryptPrivateKey, bitcoinService, ethereumService, solanaService, priceService, COINGECKO_IDS } from '@/components/blockchain/blockchainService';
-import { signBitcoinTransaction, signEthereumTransaction, validateTransaction } from '@/components/blockchain/TransactionSigner';
+import { decryptPrivateKey, bitcoinService, ethereumService, solanaService, sendBitcoinTransaction, sendEthereumTransaction, sendSolanaTransaction } from '@/components/blockchain/blockchainService';
+import { priceOracle } from '@/components/blockchain/priceOracle';
 
-// Token prices will be fetched in real-time
-let tokenPrices = {};
+const [tokenPrices, setTokenPrices] = useState({
+  BTC: 0,
+  ETH: 0,
+  USDT: 0,
+  SOL: 0,
+  BNB: 0,
+  DOGE: 0,
+  USDC: 0,
+  ADA: 0,
+  DOT: 0,
+  MATIC: 0,
+  AVAX: 0,
+  LINK: 0
+});
+
+// Fetch real-time prices on mount
+useEffect(() => {
+  const fetchPrices = async () => {
+    const prices = await priceOracle.getPrices();
+    const formattedPrices = {};
+    Object.entries(prices).forEach(([symbol, data]) => {
+      formattedPrices[symbol] = data.current;
+    });
+    setTokenPrices(formattedPrices);
+  };
+
+  fetchPrices();
+  const interval = setInterval(fetchPrices, 60000); // Update every minute
+
+  return () => clearInterval(interval);
+}, []);
 
 export default function Portfolio() {
   const [showBalance, setShowBalance] = useState(true);
@@ -47,26 +76,6 @@ export default function Portfolio() {
   const [user, setUser] = useState(null);
 
   const queryClient = useQueryClient();
-
-  // Fetch real-time prices
-  useEffect(() => {
-    const fetchPrices = async () => {
-      const tokenIds = Object.values(COINGECKO_IDS);
-      const prices = await priceService.getPrices(tokenIds);
-      const priceMap = {};
-      
-      Object.entries(COINGECKO_IDS).forEach(([symbol, id]) => {
-        priceMap[symbol] = prices[id]?.usd || 0;
-      });
-      
-      tokenPrices = priceMap;
-    };
-    
-    fetchPrices();
-    // Refresh prices every 60 seconds
-    const interval = setInterval(fetchPrices, 60000);
-    return () => clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -123,53 +132,39 @@ export default function Portfolio() {
 
   // Send transaction mutation
   const sendMutation = useMutation({
-    mutationFn: async ({ token, amount, recipient }) => {
+    mutationFn: async ({ token, amount, recipient, walletType, network }) => {
       if (!currentWallet) throw new Error('No wallet found');
       if (!currentWallet.encrypted_private_key) throw new Error('This wallet does not support sending');
       
       const currentBalance = balances[token] || 0;
-      
-      // Validate transaction
-      validateTransaction(token, amount, recipient, currentBalance);
-
-      let signedTx;
-      let txHash;
+      if (currentBalance < amount) throw new Error('Insufficient balance');
 
       try {
-        // Sign transaction based on token type
-        if (token === 'BTC') {
-          signedTx = await signBitcoinTransaction(
-            currentWallet.encrypted_private_key,
-            [], // inputs - would be fetched from blockchain in production
-            [{ address: recipient, amount }],
-            'mainnet'
-          );
-          // Broadcast to Bitcoin network
-          txHash = await bitcoinService.broadcastTransaction(signedTx);
-        } else if (['ETH', 'USDT', 'USDC'].includes(token)) {
-          signedTx = await signEthereumTransaction(
-            currentWallet.encrypted_private_key,
-            recipient,
-            amount
-          );
-          // Broadcast to Ethereum network
-          txHash = await ethereumService.broadcastTransaction(signedTx);
-        } else if (token === 'SOL') {
-          throw new Error('Solana transactions require @solana/web3.js installation');
+        const decryptedKey = decryptPrivateKey(currentWallet.encrypted_private_key);
+        let txHash;
+
+        // Route to appropriate blockchain network
+        if (network.toLowerCase() === 'bitcoin' || token === 'BTC') {
+          txHash = await sendBitcoinTransaction(decryptedKey, recipient, amount);
+        } else if (network.toLowerCase() === 'solana' || token === 'SOL') {
+          txHash = await sendSolanaTransaction(decryptedKey, recipient, amount);
         } else {
-          throw new Error(`Sending ${token} is not yet supported`);
+          // Default to Ethereum
+          txHash = await sendEthereumTransaction(decryptedKey, recipient, amount.toString());
         }
 
-        // Update wallet balance (deduct amount)
-        const fee = amount * 0.001; // Rough fee estimation
-        const newBalance = currentBalance - amount - fee;
-        
+        // Update wallet balance
+        const newBalance = currentBalance - amount;
         await base44.entities.Wallet.update(currentWallet.id, {
           balances: {
             ...balances,
             [token]: newBalance
           },
-          total_usd_value: totalValue - (amount * (tokenPrices[token] || 0))
+          total_usd_value: Object.entries(balances).reduce((sum, [key, bal]) => {
+            const price = tokenPrices[key] || 0;
+            const newBal = key === token ? newBalance : bal;
+            return sum + (newBal * price);
+          }, 0)
         });
 
         // Record transaction
@@ -177,20 +172,19 @@ export default function Portfolio() {
           user_id: user.id,
           type: 'transfer_out',
           from_token: token,
-          to_token: token,
           from_amount: amount,
+          to_token: token,
           to_amount: amount,
-          fee: fee,
+          fee: amount * 0.001,
           status: 'completed',
           usd_value: amount * (tokenPrices[token] || 0),
           tx_hash: txHash,
-          network: token === 'BTC' ? 'Bitcoin' : 'Ethereum',
-          notes: `Sent to ${recipient}`
+          network: network
         });
 
         return txHash;
       } catch (error) {
-        throw new Error(`Transaction signing/broadcasting failed: ${error.message}`);
+        throw error;
       }
     },
     onSuccess: () => {
@@ -212,10 +206,16 @@ export default function Portfolio() {
       toast.error('Please fill all fields');
       return;
     }
+    if (!currentWallet.wallet_type || !currentWallet.encrypted_private_key) {
+      toast.error('This wallet does not support sending');
+      return;
+    }
     sendMutation.mutate({
       token: selectedToken.symbol,
       amount: parseFloat(sendAmount),
-      recipient: recipientAddress
+      recipient: recipientAddress,
+      walletType: currentWallet.wallet_type,
+      network: currentWallet.networks?.[0] || 'ethereum'
     });
   };
 
