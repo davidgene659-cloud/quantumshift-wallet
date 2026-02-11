@@ -33,7 +33,7 @@ export default function RewardsSystem() {
 
   const nextLevel = levels.find(l => l.level === currentLevel.level + 1);
   const progressToNext = nextLevel 
-    ? ((userXP - currentLevel.xpRequire d) / (nextLevel.xpRequired - currentLevel.xpRequired)) * 100 
+    ? ((userXP - currentLevel.xpRequired) / (nextLevel.xpRequired - currentLevel.xpRequired)) * 100 
     : 100;
 
   const totalPoints = achievements.filter(a => a.unlocked).reduce((sum, a) => sum + a.points, 0);
