@@ -11,7 +11,10 @@ import {
   LayoutDashboard,
   Grid3x3,
   Gamepad2,
-  TrendingUp
+  TrendingUp,
+  CreditCard,
+  BookOpen,
+  Heart
 } from 'lucide-react';
 
 const navItems = [
@@ -24,6 +27,12 @@ const navItems = [
   { icon: Spade, label: 'Poker', page: 'Poker' },
   { icon: Landmark, label: 'Banking', page: 'Banking' },
   { icon: TrendingUp, label: 'Analytics', page: 'Analytics' },
+];
+
+const secondaryNavItems = [
+  { icon: 'CreditCard', label: 'Card', page: 'VirtualCard' },
+  { icon: 'BookOpen', label: 'Learn', page: 'Education' },
+  { icon: 'Heart', label: 'Legacy', page: 'Legacy' },
 ];
 
 export default function Layout({ children }) {
@@ -67,23 +76,28 @@ export default function Layout({ children }) {
       <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-xl border-t border-white/10 md:hidden z-40 select-none" style={{
         paddingBottom: 'max(env(safe-area-inset-bottom), 0px)'
       }}>
-        <div className="flex justify-around items-center px-2" style={{ minHeight: '64px' }}>
-          {navItems.map((item) => {
-            const isActive = currentPath.includes(item.page);
-            return (
-              <Link
-                key={item.page}
-                to={createPageUrl(item.page)}
-                className={`flex flex-col items-center gap-1 px-2 py-2 rounded-xl transition-all select-none ${
-                  isActive ? 'text-purple-400' : 'text-white/50 hover:text-white/70'
-                }`}
-                style={{ minWidth: '44px', minHeight: '44px' }}
-              >
-                <item.icon className="w-6 h-6" />
-                <span className="text-xs font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
+        <div className="overflow-x-auto">
+          <div className="flex justify-start items-center px-2 gap-1" style={{ minHeight: '64px', minWidth: 'max-content' }}>
+            {[...navItems, ...secondaryNavItems].map((item) => {
+              const isActive = currentPath.includes(item.page);
+              const Icon = typeof item.icon === 'string' ? 
+                (item.icon === 'CreditCard' ? CreditCard : item.icon === 'BookOpen' ? BookOpen : Heart) : 
+                item.icon;
+              return (
+                <Link
+                  key={item.page}
+                  to={createPageUrl(item.page)}
+                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all select-none flex-shrink-0 ${
+                    isActive ? 'text-purple-400' : 'text-white/50 hover:text-white/70'
+                  }`}
+                  style={{ minWidth: '64px', minHeight: '44px' }}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="text-xs font-medium whitespace-nowrap">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </nav>
 
@@ -93,7 +107,7 @@ export default function Layout({ children }) {
           <Wallet className="w-6 h-6 text-white" />
         </div>
 
-        <div className="flex-1 flex flex-col gap-2">
+        <div className="flex-1 flex flex-col gap-2 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = currentPath.includes(item.page);
             return (
@@ -109,6 +123,28 @@ export default function Layout({ children }) {
                   title={item.label}
                 >
                   <item.icon className="w-6 h-6" />
+                </Link>
+            );
+          })}
+
+          <div className="h-px bg-white/10 my-2 mx-2"></div>
+
+          {secondaryNavItems.map((item) => {
+            const isActive = currentPath.includes(item.page);
+            const Icon = item.icon === 'CreditCard' ? CreditCard : item.icon === 'BookOpen' ? BookOpen : Heart;
+            return (
+              <Link
+                  key={item.page}
+                  to={createPageUrl(item.page)}
+                  className={`rounded-xl flex items-center justify-center transition-all select-none ${
+                    isActive 
+                      ? 'bg-purple-500/20 text-purple-400' 
+                      : 'text-white/50 hover:bg-white/5 hover:text-white/70'
+                  }`}
+                  style={{ minWidth: '56px', minHeight: '56px' }}
+                  title={item.label}
+                >
+                  <Icon className="w-6 h-6" />
                 </Link>
             );
           })}

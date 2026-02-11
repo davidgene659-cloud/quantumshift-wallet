@@ -61,6 +61,9 @@ import Send from './pages/Send';
 import Settings from './pages/Settings';
 import Swap from './pages/Swap';
 import TradingBots from './pages/TradingBots';
+import VirtualCard from './pages/VirtualCard';
+import Education from './pages/Education';
+import Legacy from './pages/Legacy';
 import __Layout from './Layout.jsx';
 
 
@@ -79,6 +82,9 @@ export const PAGES = {
     "Settings": Settings,
     "Swap": Swap,
     "TradingBots": TradingBots,
+    "VirtualCard": VirtualCard,
+    "Education": Education,
+    "Legacy": Legacy,
 }
 
 export const pagesConfig = {
