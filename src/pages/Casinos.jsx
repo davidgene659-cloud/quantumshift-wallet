@@ -121,7 +121,7 @@ export default function Casinos() {
                     <div className="flex items-center gap-2">
                       <h3 className="text-white font-bold">{casino.name}</h3>
                       {casino.verified && (
-                        <Shield className="w-4 h-4 text-emerald-400" />
+                        <ShieldIcon className="w-4 h-4 text-emerald-400" />
                       )}
                     </div>
                     <p className="text-white/50 text-sm">{casino.games} games</p>
