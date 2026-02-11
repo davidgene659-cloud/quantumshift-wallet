@@ -160,11 +160,25 @@ export default function Banking() {
               <ArrowUpRight className="w-7 h-7 text-white" />
             </div>
             <div className="text-left">
-              <h3 className="text-white font-bold text-lg">Withdraw</h3>
-              <p className="text-white/50 text-sm">To your bank account</p>
+              <h3 className="text-white font-bold text-lg">Cash Out</h3>
+              <p className="text-white/50 text-sm">Crypto → Bank Account</p>
             </div>
           </button>
         </motion.div>
+
+        {/* Simple Explainer */}
+        {primaryAccount && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="bg-gradient-to-br from-blue-900/30 to-purple-900/30 border border-blue-500/30 rounded-2xl p-4"
+          >
+            <p className="text-white/90 text-sm">
+              💡 <strong>Cash Out Made Simple:</strong> Click "Cash Out" above to convert your crypto to dollars and send it directly to your bank account. Arrives in 1-3 business days - it's that easy!
+            </p>
+          </motion.div>
+        )}
 
         {/* Linked Accounts */}
         <motion.div
