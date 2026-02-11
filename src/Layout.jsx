@@ -24,7 +24,7 @@ import {
 const navItems = [
   { icon: LayoutDashboard, label: 'Portfolio', page: 'Portfolio' },
   { icon: ArrowLeftRight, label: 'Swap', page: 'Swap' },
-  { icon: Bot, label: 'Bots', page: 'TradingBots' },
+  { icon: Bot, label: 'Bots', page: 'BotBuilder' },
   { icon: Cpu, label: 'Mining', page: 'CloudMining' },
   { icon: Grid3x3, label: 'DApps', page: 'DApps' },
   { icon: Gamepad2, label: 'Casinos', page: 'Casinos' },
