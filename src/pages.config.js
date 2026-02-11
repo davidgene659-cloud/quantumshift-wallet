@@ -64,6 +64,8 @@ import TradingBots from './pages/TradingBots';
 import VirtualCard from './pages/VirtualCard';
 import Education from './pages/Education';
 import Legacy from './pages/Legacy';
+import AIHub from './pages/AIHub';
+import DeFiStrategies from './pages/DeFiStrategies';
 import __Layout from './Layout.jsx';
 
 
@@ -85,6 +87,8 @@ export const PAGES = {
     "VirtualCard": VirtualCard,
     "Education": Education,
     "Legacy": Legacy,
+    "AIHub": AIHub,
+    "DeFiStrategies": DeFiStrategies,
 }
 
 export const pagesConfig = {
