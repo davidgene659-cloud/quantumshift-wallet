@@ -132,7 +132,7 @@ export default function Portfolio() {
 
   // Send transaction mutation
   const sendMutation = useMutation({
-    mutationFn: async ({ token, amount, recipient, walletType, network }) => {
+    mutationFn: async ({ token, amount, recipient, walletType, network = 'ethereum' }) => {
       if (!currentWallet) throw new Error('No wallet found');
       if (!currentWallet.encrypted_private_key) throw new Error('This wallet does not support sending');
       
@@ -549,7 +549,7 @@ export default function Portfolio() {
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500"
               style={{ minHeight: '44px' }}
             >
-              {sendMutation.isPending ? 'Sending...' : 'Send Transaction'}
+              {sendMutation.isPending ? 'Processing...' : 'Send Transaction'}
             </Button>
           </div>
         </DialogContent>
