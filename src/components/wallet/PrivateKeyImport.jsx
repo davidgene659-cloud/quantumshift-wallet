@@ -290,17 +290,47 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
             </div>
           )}
 
-          {/* Validate Button */}
+          {/* Network Selection */}
+          <div>
+            <label className="text-white/70 text-sm mb-2 block flex items-center gap-2">
+              <Network className="w-4 h-4" />
+              Scan Networks
+            </label>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {networks.map((network) => (
+                <button
+                  key={network.symbol}
+                  onClick={() => toggleNetwork(network.symbol)}
+                  className={`p-3 rounded-xl border transition-all ${
+                    selectedNetworks.includes(network.symbol)
+                      ? `bg-gradient-to-br ${network.color} border-white/20`
+                      : 'bg-white/5 border-white/10 hover:bg-white/10'
+                  }`}
+                >
+                  <p className="text-white text-sm font-medium">{network.symbol}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Scan Button */}
           {importType === 'private_key' && (
             <Button
-              onClick={handleValidate}
-              disabled={privateKeys.trim().length === 0}
+              onClick={scanPrivateKeys}
+              disabled={isScanning || privateKeys.trim().length === 0 || selectedNetworks.length === 0}
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500"
             >
-              <>
-                <Upload className="w-4 h-4 mr-2" />
-                Validate & Parse
-              </>
+              {isScanning ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Scanning {selectedNetworks.length} Networks...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Scan & Import
+                </>
+              )}
             </Button>
           )}
 
