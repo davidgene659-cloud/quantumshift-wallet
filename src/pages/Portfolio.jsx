@@ -388,10 +388,10 @@ export default function Portfolio() {
             <div>
               <Label className="text-white/70">Available Balance</Label>
               <p className="text-2xl font-bold text-white mt-1">
-                {selectedToken?.balance.toFixed(6)} {selectedToken?.symbol}
+                {selectedToken && typeof selectedToken.balance === 'number' ? selectedToken.balance.toFixed(6) : '0'} {selectedToken?.symbol}
               </p>
               <p className="text-white/50 text-sm">
-                ≈ ${(selectedToken?.balance * selectedToken?.price).toFixed(2)}
+                ≈ ${selectedToken && typeof selectedToken.balance === 'number' ? (selectedToken.balance * selectedToken.price).toFixed(2) : '0'}
               </p>
             </div>
 
@@ -406,12 +406,12 @@ export default function Portfolio() {
                   className="bg-white/5 border-white/10 text-white"
                 />
                 <Button
-                  onClick={() => setSendAmount(selectedToken?.balance.toString())}
-                  variant="outline"
-                  className="border-white/20 text-white"
-                >
-                  MAX
-                </Button>
+                   onClick={() => selectedToken && typeof selectedToken.balance === 'number' && setSendAmount(selectedToken.balance.toString())}
+                   variant="outline"
+                   className="border-white/20 text-white"
+                 >
+                   MAX
+                 </Button>
               </div>
               {sendAmount && (
                 <p className="text-white/50 text-sm mt-1">
