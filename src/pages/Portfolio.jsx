@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { decryptPrivateKey, bitcoinService, ethereumService } from '@/components/blockchain/blockchainService';
 
 // Token prices (in production, fetch from API)
 const tokenPrices = {
@@ -94,35 +95,10 @@ export default function Portfolio() {
 
   const totalValue = tokens.reduce((acc, t) => acc + (t.balance * t.price), 0);
 
-  // Receive transaction mutation
+  // Receive is read-only - transactions come from blockchain
   const receiveMutation = useMutation({
     mutationFn: async ({ token, amount }) => {
-      if (!currentWallet) throw new Error('No wallet found');
-      
-      const currentBalance = parseFloat(balances[token] || 0);
-      const newBalance = currentBalance + amount;
-
-      // Update wallet balance
-      await base44.entities.Wallet.update(currentWallet.id, {
-        balances: {
-          ...balances,
-          [token]: newBalance
-        },
-        total_usd_value: totalValue + (amount * tokenPrices[token])
-      });
-
-      // Record transaction
-      await base44.entities.Transaction.create({
-        user_id: user.id,
-        type: 'deposit',
-        from_token: token,
-        from_amount: amount,
-        to_token: token,
-        to_amount: amount,
-        fee: 0,
-        status: 'completed',
-        usd_value: amount * tokenPrices[token]
-      });
+      throw new Error('Cannot manually receive funds. Real transactions will appear automatically when sent to your wallet address.');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wallets'] });
@@ -141,31 +117,14 @@ export default function Portfolio() {
   const sendMutation = useMutation({
     mutationFn: async ({ token, amount, recipient }) => {
       if (!currentWallet) throw new Error('No wallet found');
+      if (!currentWallet.encrypted_private_key) throw new Error('This wallet does not support sending (no private key)');
       
-      const newBalance = balances[token] - amount;
-      if (newBalance < 0) throw new Error('Insufficient balance');
+      const currentBalance = balances[token] || 0;
+      if (currentBalance < amount) throw new Error('Insufficient balance');
 
-      // Update wallet balance
-      await base44.entities.Wallet.update(currentWallet.id, {
-        balances: {
-          ...balances,
-          [token]: newBalance
-        },
-        total_usd_value: totalValue - (amount * tokenPrices[token])
-      });
-
-      // Record transaction
-      await base44.entities.Transaction.create({
-        user_id: user.id,
-        type: 'withdraw',
-        from_token: token,
-        from_amount: amount,
-        to_token: token,
-        to_amount: amount,
-        fee: amount * 0.001,
-        status: 'completed',
-        usd_value: amount * tokenPrices[token]
-      });
+      // Note: Real transaction signing requires additional libraries (bitcoinjs-lib, ethers)
+      // For now, this creates a pending transaction record
+      throw new Error('Real blockchain transaction signing requires additional setup. This feature is under development.');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wallets'] });
