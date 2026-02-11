@@ -27,40 +27,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { decryptPrivateKey, bitcoinService, ethereumService, solanaService, sendBitcoinTransaction, sendEthereumTransaction, sendSolanaTransaction } from '@/components/blockchain/blockchainService';
+import { decryptPrivateKey, sendBitcoinTransaction, sendEthereumTransaction, sendSolanaTransaction } from '@/components/blockchain/blockchainService';
 import { priceOracle } from '@/components/blockchain/priceOracle';
-
-const [tokenPrices, setTokenPrices] = useState({
-  BTC: 0,
-  ETH: 0,
-  USDT: 0,
-  SOL: 0,
-  BNB: 0,
-  DOGE: 0,
-  USDC: 0,
-  ADA: 0,
-  DOT: 0,
-  MATIC: 0,
-  AVAX: 0,
-  LINK: 0
-});
-
-// Fetch real-time prices on mount
-useEffect(() => {
-  const fetchPrices = async () => {
-    const prices = await priceOracle.getPrices();
-    const formattedPrices = {};
-    Object.entries(prices).forEach(([symbol, data]) => {
-      formattedPrices[symbol] = data.current;
-    });
-    setTokenPrices(formattedPrices);
-  };
-
-  fetchPrices();
-  const interval = setInterval(fetchPrices, 60000); // Update every minute
-
-  return () => clearInterval(interval);
-}, []);
 
 export default function Portfolio() {
   const [showBalance, setShowBalance] = useState(true);
@@ -74,8 +42,39 @@ export default function Portfolio() {
   const [receiveAmount, setReceiveAmount] = useState('');
   const [selectedWalletId, setSelectedWalletId] = useState(null);
   const [user, setUser] = useState(null);
+  const [tokenPrices, setTokenPrices] = useState({
+    BTC: 0,
+    ETH: 0,
+    USDT: 0,
+    SOL: 0,
+    BNB: 0,
+    DOGE: 0,
+    USDC: 0,
+    ADA: 0,
+    DOT: 0,
+    MATIC: 0,
+    AVAX: 0,
+    LINK: 0
+  });
 
   const queryClient = useQueryClient();
+
+  // Fetch real-time prices on mount
+  useEffect(() => {
+    const fetchPrices = async () => {
+      const prices = await priceOracle.getPrices();
+      const formattedPrices = {};
+      Object.entries(prices).forEach(([symbol, data]) => {
+        formattedPrices[symbol] = data.current;
+      });
+      setTokenPrices(formattedPrices);
+    };
+
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
