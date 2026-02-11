@@ -13,6 +13,7 @@ import TokenCard from '@/components/wallet/TokenCard';
 import PullToRefresh from '@/components/mobile/PullToRefresh';
 import PrivateKeyImport from '@/components/wallet/PrivateKeyImport';
 import BitcoinSendDialog from '@/components/wallet/BitcoinSendDialog';
+import EvmSendDialog from '@/components/wallet/EvmSendDialog';
 import AIChatbot from '@/components/chat/AIChatbot';
 import SecurityMonitor from '@/components/ai/SecurityMonitor';
 import PortfolioShield from '@/components/portfolio/PortfolioShield';
@@ -46,6 +47,7 @@ export default function Portfolio() {
   const [showWalletDetails, setShowWalletDetails] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
   const [showBitcoinSend, setShowBitcoinSend] = useState(false);
+  const [showEvmSend, setShowEvmSend] = useState(false);
   const [selectedToken, setSelectedToken] = useState(null);
   const [sendAmount, setSendAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
@@ -137,14 +139,23 @@ export default function Portfolio() {
   };
 
   const openSendDialog = (token) => {
+    const evmCoins = ['ETH', 'USDT', 'USDC', 'DAI', 'WBTC', 'BNB', 'MATIC'];
+    
     if (token.symbol === 'BTC') {
-      // Find the actual wallet with BTC
       const btcWallet = wallets.find(w => w.balances?.BTC);
       if (btcWallet) {
         setSelectedToken(token);
         setShowBitcoinSend(true);
       } else {
         toast.error('No Bitcoin wallet found');
+      }
+    } else if (evmCoins.includes(token.symbol)) {
+      const evmWallet = wallets.find(w => w.address?.startsWith('0x'));
+      if (evmWallet) {
+        setSelectedToken(token);
+        setShowEvmSend(true);
+      } else {
+        toast.error('No EVM wallet found');
       }
     } else {
       setSelectedToken(token);
@@ -443,6 +454,18 @@ export default function Portfolio() {
           isOpen={showBitcoinSend}
           onClose={() => setShowBitcoinSend(false)}
           wallet={wallets[0]}
+        />
+      )}
+
+      {/* EVM Chains Send */}
+      {wallets[0] && (
+        <EvmSendDialog
+          isOpen={showEvmSend}
+          onClose={() => setShowEvmSend(false)}
+          wallet={wallets[0]}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['wallets'] });
+          }}
         />
       )}
       </PullToRefresh>
