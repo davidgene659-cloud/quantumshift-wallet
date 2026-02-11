@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { base44 } from '@/api/base44Client';
 
 const networks = [
+  { name: 'Bitcoin', symbol: 'BTC', color: 'from-orange-500 to-amber-500' },
   { name: 'Ethereum', symbol: 'ETH', color: 'from-indigo-500 to-purple-500' },
   { name: 'Binance Smart Chain', symbol: 'BSC', color: 'from-amber-500 to-yellow-500' },
   { name: 'Polygon', symbol: 'MATIC', color: 'from-purple-500 to-pink-500' },
