@@ -6,7 +6,7 @@ import { TrendingUp, AlertTriangle, Target, Zap, Settings, Download, Plus, Spark
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import MobileSelect from '@/components/ui/mobile-select';
+import { MobileSelect } from '@/components/ui/mobile-select';
 import PortfolioPerformance from '@/components/analytics/PortfolioPerformance';
 import TradingStats from '@/components/analytics/TradingStats';
 import MiningMetrics from '@/components/analytics/MiningMetrics';

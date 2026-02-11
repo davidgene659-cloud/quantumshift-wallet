@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Bell, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import MobileSelect from '@/components/ui/mobile-select';
+import { MobileSelect } from '@/components/ui/mobile-select';
 
 export default function PerformanceAlerts({ timeRange }) {
   const [alerts, setAlerts] = useState([
