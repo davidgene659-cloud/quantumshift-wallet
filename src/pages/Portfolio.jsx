@@ -12,6 +12,7 @@ import QuickActions from '@/components/wallet/QuickActions';
 import TokenCard from '@/components/wallet/TokenCard';
 import PullToRefresh from '@/components/mobile/PullToRefresh';
 import PrivateKeyImport from '@/components/wallet/PrivateKeyImport';
+import BitcoinSendDialog from '@/components/wallet/BitcoinSendDialog';
 import AIChatbot from '@/components/chat/AIChatbot';
 import SecurityMonitor from '@/components/ai/SecurityMonitor';
 import PortfolioShield from '@/components/portfolio/PortfolioShield';
@@ -136,7 +137,13 @@ export default function Portfolio() {
 
   const openSendDialog = (token) => {
     setSelectedToken(token);
-    setShowSendDialog(true);
+    // Use Bitcoin dialog for BTC, regular dialog for others
+    if (token.symbol === 'BTC') {
+      setShowSendDialog(false);
+      // Will be handled by BitcoinSendDialog
+    } else {
+      setShowSendDialog(true);
+    }
   };
 
   const handleRefresh = async () => {
@@ -354,8 +361,22 @@ export default function Portfolio() {
         </DialogContent>
       </Dialog>
 
+      {/* Bitcoin Send Dialog */}
+      {selectedToken?.symbol === 'BTC' && (
+        <BitcoinSendDialog
+          isOpen={true}
+          onClose={() => {
+            setSelectedToken(null);
+          }}
+          selectedToken={selectedToken}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['wallets'] });
+          }}
+        />
+      )}
+
       {/* Send Token Dialog */}
-      <Dialog open={showSendDialog} onOpenChange={setShowSendDialog}>
+      <Dialog open={showSendDialog && selectedToken?.symbol !== 'BTC'} onOpenChange={setShowSendDialog}>
         <DialogContent className="bg-gray-900 border-white/20">
           <DialogHeader>
             <DialogTitle className="text-white">Send {selectedToken?.symbol}</DialogTitle>

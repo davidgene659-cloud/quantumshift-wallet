@@ -1,178 +1,119 @@
 import * as bitcoin from 'bitcoinjs-lib';
 import axios from 'axios';
 
-const NETWORK = bitcoin.networks.bitcoin; // mainnet
-const BLOCKCHAIR_API = 'https://api.blockchair.com/bitcoin';
+// Bitcoin mainnet config
+const BITCOIN_RPC = 'https://blockstream.info/api';
+const NETWORK = bitcoin.networks.bitcoin;
 
-// Decrypt private key (basic example - use proper encryption in production)
-export const decryptPrivateKey = (encrypted) => {
-  // In production, use proper AES encryption/decryption
-  // For now, returning as-is. You should implement proper decryption.
-  return encrypted;
-};
-
-// Get UTXO from blockchain
-export const getUTXOs = async (address) => {
+export async function getUTXOs(address) {
   try {
-    const response = await axios.get(`${BLOCKCHAIR_API}/addresses/${address}?key=nanimouspro`);
-    const data = response.data.data[address];
-    
-    if (!data || !data.utxo) {
-      return [];
-    }
-
-    return data.utxo.map(utxo => ({
-      txid: utxo.transaction_hash,
-      vout: utxo.index,
-      value: utxo.value,
-      satoshis: utxo.value
-    }));
+    const response = await axios.get(`${BITCOIN_RPC}/address/${address}/utxo`);
+    return response.data;
   } catch (error) {
-    console.error('Failed to get UTXOs:', error);
-    throw new Error('Failed to fetch UTXOs from blockchain');
+    throw new Error(`Failed to fetch UTXOs: ${error.message}`);
   }
-};
+}
 
-// Get current network fee (in satoshis per byte)
-export const getNetworkFee = async () => {
+export async function getBalance(address) {
   try {
-    const response = await axios.get('https://api.blockchain.com/v3/payments/fees/estimates');
-    // Returns fees in satoshis/byte
-    return {
-      slow: response.data.slow,
-      standard: response.data.standard,
-      fast: response.data.fast
-    };
+    const response = await axios.get(`${BITCOIN_RPC}/address/${address}`);
+    return response.data.chain_stats.funded_txo_sum - response.data.chain_stats.spent_txo_sum;
   } catch (error) {
-    // Fallback fees
-    return {
-      slow: 5,
-      standard: 10,
-      fast: 20
-    };
+    throw new Error(`Failed to fetch balance: ${error.message}`);
   }
-};
+}
 
-// Sign and create transaction
-export const createBitcoinTransaction = async (params) => {
-  const {
-    fromAddress,
-    toAddress,
-    amount, // in satoshis
-    privateKeyWIF,
-    feeRate = 10 // sat/byte
-  } = params;
-
+export async function estimateFee() {
   try {
-    // Validate addresses
-    try {
-      bitcoin.address.toOutputScript(fromAddress, NETWORK);
-      bitcoin.address.toOutputScript(toAddress, NETWORK);
-    } catch {
-      throw new Error('Invalid Bitcoin address');
-    }
+    const response = await axios.get('https://mempool.space/api/v1/fees/recommended');
+    return response.data.fastestFee; // sat/vB
+  } catch (error) {
+    // Fallback fee if API fails
+    return 25;
+  }
+}
 
-    // Get UTXOs
+export async function createAndSignTransaction(privateKeyWIF, toAddress, amountSatoshis, fromAddress) {
+  try {
+    // Get UTXOs for this address
     const utxos = await getUTXOs(fromAddress);
-    if (utxos.length === 0) {
-      throw new Error('No unspent outputs found');
-    }
+    if (utxos.length === 0) throw new Error('No UTXOs available');
 
-    // Create transaction builder
-    const txb = new bitcoin.TransactionBuilder(NETWORK);
+    // Calculate fee and total needed
+    const feeRate = await estimateFee();
+    const estimatedSize = 250; // rough estimate for single input, single output
+    const fee = Math.ceil((feeRate * estimatedSize) / 1000);
+    const totalNeeded = amountSatoshis + fee;
 
-    // Select UTXOs (simple selection - takes first available)
-    let inputAmount = 0;
+    // Find UTXOs that cover the amount
+    let inputSum = 0;
     const inputs = [];
     for (const utxo of utxos) {
       inputs.push(utxo);
-      inputAmount += utxo.satoshis;
-      if (inputAmount >= amount + (feeRate * 226)) break; // 226 = avg tx size
+      inputSum += utxo.value;
+      if (inputSum >= totalNeeded) break;
     }
 
-    if (inputAmount < amount) {
-      throw new Error('Insufficient balance');
+    if (inputSum < totalNeeded) {
+      throw new Error(`Insufficient balance. Need ${totalNeeded} sats, have ${inputSum} sats`);
     }
 
-    // Calculate fee
-    const txSize = 226; // Approximate size in bytes
-    const fee = feeRate * txSize;
-    const change = inputAmount - amount - fee;
-
-    if (change < 0) {
-      throw new Error('Insufficient balance for fee');
-    }
+    // Create transaction
+    const psbt = new bitcoin.Psbt({ network: NETWORK });
 
     // Add inputs
-    const keyPair = bitcoin.ECPair.fromWIF(privateKeyWIF, NETWORK);
     for (const input of inputs) {
-      txb.addInput(input.txid, input.vout);
+      psbt.addInput({
+        hash: input.txid,
+        index: input.vout,
+        witnessUtxo: {
+          script: Buffer.from(input.status.scriptpubkey, 'hex'),
+          value: input.value
+        }
+      });
     }
 
-    // Add outputs
-    txb.addOutput(toAddress, amount);
-    if (change > 546) { // Dust limit
-      txb.addOutput(fromAddress, change);
+    // Add output (to recipient)
+    psbt.addOutput({
+      address: toAddress,
+      value: amountSatoshis
+    });
+
+    // Add change output if needed
+    const change = inputSum - amountSatoshis - fee;
+    if (change > 546) { // dust limit
+      psbt.addOutput({
+        address: fromAddress,
+        value: change
+      });
     }
 
-    // Sign inputs
-    for (let i = 0; i < inputs.length; i++) {
-      txb.sign(i, keyPair);
-    }
+    // Sign with private key
+    const keyPair = bitcoin.ECPair.fromWIF(privateKeyWIF, NETWORK);
+    psbt.signAllInputs(keyPair);
+    psbt.finalizeAllInputs();
 
-    const tx = txb.build();
-    const txHex = tx.toHex();
-
-    return {
-      tx,
-      txHex,
-      fee,
-      change,
-      size: txSize
-    };
+    const signedTx = psbt.extractTransaction();
+    return signedTx.toHex();
   } catch (error) {
     throw new Error(`Transaction creation failed: ${error.message}`);
   }
-};
+}
 
-// Broadcast transaction to network
-export const broadcastTransaction = async (txHex) => {
+export async function broadcastTransaction(rawTx) {
   try {
-    // Using blockchain.info API
-    const response = await axios.post(
-      'https://blockchain.info/pushtx',
-      `tx=${txHex}`,
-      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-    );
-
-    if (response.data.includes('error')) {
-      throw new Error(response.data);
-    }
-
-    // Extract txid from response
-    const txid = response.data.trim();
-    return txid;
+    const response = await axios.post('https://blockstream.info/api/tx', rawTx);
+    return response.data;
   } catch (error) {
-    console.error('Broadcast error:', error);
-    throw new Error(`Failed to broadcast: ${error.message}`);
+    throw new Error(`Broadcast failed: ${error.response?.data || error.message}`);
   }
-};
+}
 
-// Get transaction status
-export const getTransactionStatus = async (txid) => {
+export async function getTransactionStatus(txid) {
   try {
-    const response = await axios.get(`${BLOCKCHAIR_API}/transactions/${txid}?key=nanimouspro`);
-    const tx = response.data.data[txid];
-    
-    return {
-      txid,
-      confirmations: tx.confirmations,
-      status: tx.confirmations > 0 ? 'confirmed' : 'pending',
-      time: tx.time,
-      amount: tx.output_total,
-      fee: tx.fee
-    };
+    const response = await axios.get(`${BITCOIN_RPC}/tx/${txid}`);
+    return response.data;
   } catch (error) {
-    throw new Error('Failed to get transaction status');
+    throw new Error(`Failed to fetch transaction status: ${error.message}`);
   }
-};
+}
