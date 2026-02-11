@@ -21,6 +21,7 @@ const networks = [
 export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
   const [privateKeys, setPrivateKeys] = useState('');
   const [isScanning, setIsScanning] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [scanResults, setScanResults] = useState([]);
   const [selectedNetworks, setSelectedNetworks] = useState(networks.map(n => n.symbol));
   const [importType, setImportType] = useState('private_key'); // private_key, hardware
@@ -323,10 +324,20 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
 
               <Button
                 onClick={handleImport}
+                disabled={isImporting}
                 className="w-full mt-4 bg-gradient-to-r from-emerald-500 to-teal-500"
               >
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-                Import {scanResults.length} Wallets
+                {isImporting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    Import {scanResults.length} Wallets
+                  </>
+                )}
               </Button>
             </div>
           )}
