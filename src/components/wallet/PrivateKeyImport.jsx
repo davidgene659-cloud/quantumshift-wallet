@@ -351,8 +351,8 @@ export default function PrivateKeyImport({ isOpen, onClose, onImport, user }) {
                     className="bg-white/5 border border-white/10 rounded-lg p-3"
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-white font-medium text-sm">{result.network}</span>
-                      <span className="text-emerald-400 font-bold">{result.balance}</span>
+                      <span className="text-white font-medium text-sm">{result.network} ({result.symbol})</span>
+                      <span className="text-emerald-400 font-bold">{result.balance} {result.symbol}</span>
                     </div>
                     <p className="text-white/50 text-xs font-mono">{result.address}</p>
                   </motion.div>
