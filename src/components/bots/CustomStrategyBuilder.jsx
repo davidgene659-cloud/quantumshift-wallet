@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MobileSelect } from '@/components/ui/mobile-select';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
@@ -150,16 +151,17 @@ Provide refined strategy in JSON:
           {/* Risk Tolerance */}
           <div>
             <Label className="text-white/70">Risk Tolerance</Label>
-            <Select value={strategy.risk_tolerance} onValueChange={handleRiskChange}>
-              <SelectTrigger className="bg-white/5 border-white/10 text-white mt-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-white/10">
-                <SelectItem value="conservative" className="text-white">Conservative (Lower risk, stable returns)</SelectItem>
-                <SelectItem value="medium" className="text-white">Medium (Balanced risk/reward)</SelectItem>
-                <SelectItem value="aggressive" className="text-white">Aggressive (Higher risk, higher returns)</SelectItem>
-              </SelectContent>
-            </Select>
+            <MobileSelect
+              value={strategy.risk_tolerance}
+              onValueChange={handleRiskChange}
+              options={[
+                { value: 'conservative', label: 'Conservative (Lower risk, stable returns)' },
+                { value: 'medium', label: 'Medium (Balanced risk/reward)' },
+                { value: 'aggressive', label: 'Aggressive (Higher risk, higher returns)' }
+              ]}
+              placeholder="Select risk tolerance"
+              className="bg-white/5 border-white/10 text-white mt-2"
+            />
           </div>
 
           {/* Trading Pairs */}
