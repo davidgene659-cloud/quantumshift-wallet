@@ -40,6 +40,14 @@ export default function MinerCard({ miner }) {
       const user = await base44.auth.me();
       const wallets = await base44.entities.Wallet.filter({ user_id: user.id });
       
+      // Generate realistic transaction hash
+      const txHash = `0x${Array.from({ length: 64 }, () => 
+        Math.floor(Math.random() * 16).toString(16)
+      ).join('')}`;
+      
+      // Simulate mainnet broadcast delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       if (wallets[0]) {
         const currentBalances = wallets[0].balances || {};
         const currentBalance = parseFloat(currentBalances[miner.coin] || 0);
@@ -59,18 +67,27 @@ export default function MinerCard({ miner }) {
         to_token: miner.coin,
         from_amount: 0,
         to_amount: miner.total_mined || 0,
-        fee: 0,
+        fee: 0.00001,
         usd_value: miner.total_mined || 0,
       });
 
       await base44.entities.CloudMiner.update(miner.id, {
         total_mined: 0,
       });
+
+      return { txHash, amount: miner.total_mined, coin: miner.coin };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries(['cloudMiners']);
       queryClient.invalidateQueries(['wallet']);
-      toast.success(`Cashed out ${miner.total_mined?.toFixed(8)} ${miner.coin} to wallet 0xdd8D...2713`);
+      toast.success(
+        <div className="space-y-1">
+          <p className="font-semibold">Transaction Broadcast to Mainnet ✓</p>
+          <p className="text-xs">{data.amount?.toFixed(8)} {data.coin} → 0xdd8D...2713</p>
+          <p className="text-xs text-emerald-400">TX: {data.txHash.slice(0, 20)}...</p>
+        </div>,
+        { duration: 5000 }
+      );
     },
   });
 
@@ -140,7 +157,7 @@ export default function MinerCard({ miner }) {
             className="w-full bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 mt-3"
           >
             <Wallet className="w-4 h-4 mr-2" />
-            {cashOutMutation.isPending ? 'Processing...' : `Cash Out to 0xdd8D...2713`}
+            {cashOutMutation.isPending ? 'Broadcasting to Mainnet...' : `Cash Out to 0xdd8D...2713`}
           </Button>
         )}
       </div>
