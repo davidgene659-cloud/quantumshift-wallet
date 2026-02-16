@@ -1,8 +1,12 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Cpu, Zap, Clock, TrendingUp } from 'lucide-react';
+import { Cpu, Zap, Clock, TrendingUp, Wallet } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import { base44 } from '@/api/base44Client';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 const coinColors = {
   BTC: 'from-orange-500 to-amber-600',
@@ -29,6 +33,46 @@ export default function MinerCard({ miner }) {
   const isActive = miner.status === 'active';
   const limits = tierLimits[miner.tier];
   const efficiency = (miner.hashrate / limits.hashrate) * 100;
+  const queryClient = useQueryClient();
+
+  const cashOutMutation = useMutation({
+    mutationFn: async () => {
+      const user = await base44.auth.me();
+      const wallets = await base44.entities.Wallet.filter({ user_id: user.id });
+      
+      if (wallets[0]) {
+        const currentBalances = wallets[0].balances || {};
+        const currentBalance = parseFloat(currentBalances[miner.coin] || 0);
+        
+        await base44.entities.Wallet.update(wallets[0].id, {
+          balances: {
+            ...currentBalances,
+            [miner.coin]: currentBalance + (miner.total_mined || 0),
+          },
+        });
+      }
+
+      await base44.entities.Transaction.create({
+        user_id: user.id,
+        type: 'mining_reward',
+        from_token: 'MINING',
+        to_token: miner.coin,
+        from_amount: 0,
+        to_amount: miner.total_mined || 0,
+        fee: 0,
+        usd_value: miner.total_mined || 0,
+      });
+
+      await base44.entities.CloudMiner.update(miner.id, {
+        total_mined: 0,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['cloudMiners']);
+      queryClient.invalidateQueries(['wallet']);
+      toast.success(`Cashed out ${miner.total_mined?.toFixed(8)} ${miner.coin} to wallet 0xdd8D...2713`);
+    },
+  });
 
   return (
     <motion.div
@@ -88,6 +132,17 @@ export default function MinerCard({ miner }) {
             <p className="text-emerald-400 font-bold">+{miner.daily_estimate?.toFixed(8) || limits.daily.toFixed(8)} {miner.coin}</p>
           </div>
         </div>
+
+        {miner.total_mined > 0 && (
+          <Button
+            onClick={() => cashOutMutation.mutate()}
+            disabled={cashOutMutation.isPending}
+            className="w-full bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 mt-3"
+          >
+            <Wallet className="w-4 h-4 mr-2" />
+            {cashOutMutation.isPending ? 'Processing...' : `Cash Out to 0xdd8D...2713`}
+          </Button>
+        )}
       </div>
     </motion.div>
   );
