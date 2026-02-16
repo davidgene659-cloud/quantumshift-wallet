@@ -187,7 +187,7 @@ export default function Portfolio() {
         </motion.div>
       </div>
 
-      <PrivateKeyImport
+      <PrivateKeyImportDialog
         isOpen={showImport}
         onClose={() => setShowImport(false)}
         onImport={(wallets) => {
