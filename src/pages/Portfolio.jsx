@@ -17,7 +17,8 @@ import SecurityMonitor from '@/components/ai/SecurityMonitor';
 import PortfolioShield from '@/components/portfolio/PortfolioShield';
 import RewardsSystem from '@/components/gamification/RewardsSystem';
 import SponsorBanner from '@/components/sponsors/SponsorBanner';
-import { Download, Gift } from 'lucide-react';
+import { Download, Gift, BarChart3 } from 'lucide-react';
+import DashboardCustomizer from '@/components/analytics/DashboardCustomizer';
 
 const tokenPrices = {
   BTC: { price: 43250, change24h: 2.34 },
@@ -36,6 +37,7 @@ export default function Portfolio() {
   const [showBalance, setShowBalance] = useState(true);
   const [showImport, setShowImport] = useState(false);
   const [showWalletDetails, setShowWalletDetails] = useState(false);
+  const [showCustomizer, setShowCustomizer] = useState(false);
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -110,6 +112,14 @@ export default function Portfolio() {
                   <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
                 </button>
                 <button 
+                  onClick={() => setShowCustomizer(true)}
+                  className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none" 
+                  style={{ minWidth: '44px', minHeight: '44px' }}
+                  title="Customize Dashboard"
+                >
+                  <BarChart3 className="w-5 h-5 text-white/70" />
+                </button>
+                <button 
                   onClick={() => setShowImport(true)}
                   className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 transition-all select-none flex items-center gap-2" 
                   style={{ minHeight: '44px' }}
@@ -167,6 +177,15 @@ export default function Portfolio() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xl font-bold text-white">Quick Actions</h2>
+            <Link to={createPageUrl('AdvancedAnalytics')}>
+              <button className="text-purple-400 text-sm font-medium hover:text-purple-300 transition-colors flex items-center gap-1">
+                <BarChart3 className="w-4 h-4" />
+                Advanced Analytics
+              </button>
+            </Link>
+          </div>
           <QuickActions />
         </motion.div>
 
@@ -236,6 +255,13 @@ export default function Portfolio() {
           <WalletDetails />
         </DialogContent>
       </Dialog>
+
+      {/* Dashboard Customizer */}
+      <DashboardCustomizer 
+        isOpen={showCustomizer} 
+        onClose={() => setShowCustomizer(false)}
+        userId={user?.id}
+      />
       </PullToRefresh>
       </motion.div>
       );

@@ -67,6 +67,7 @@ import Settings from './pages/Settings';
 import Swap from './pages/Swap';
 import TradingBots from './pages/TradingBots';
 import VirtualCard from './pages/VirtualCard';
+import AdvancedAnalytics from './pages/AdvancedAnalytics';
 import __Layout from './Layout.jsx';
 
 
@@ -91,6 +92,7 @@ export const PAGES = {
     "Swap": Swap,
     "TradingBots": TradingBots,
     "VirtualCard": VirtualCard,
+    "AdvancedAnalytics": AdvancedAnalytics,
 }
 
 export const pagesConfig = {
