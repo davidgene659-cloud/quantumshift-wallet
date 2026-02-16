@@ -19,14 +19,18 @@ import RewardsSystem from '@/components/gamification/RewardsSystem';
 import SponsorBanner from '@/components/sponsors/SponsorBanner';
 import { Download, Gift } from 'lucide-react';
 
-const mockTokens = [
-  { symbol: 'BTC', balance: 0.5432, price: 43250, change24h: 2.34 },
-  { symbol: 'ETH', balance: 3.245, price: 2280, change24h: -1.23 },
-  { symbol: 'USDT', balance: 5000, price: 1, change24h: 0.01 },
-  { symbol: 'SOL', balance: 45.67, price: 98.5, change24h: 5.67 },
-  { symbol: 'BNB', balance: 12.3, price: 312, change24h: 1.45 },
-  { symbol: 'DOGE', balance: 15000, price: 0.082, change24h: -2.89 },
-];
+const tokenPrices = {
+  BTC: { price: 43250, change24h: 2.34 },
+  ETH: { price: 2280, change24h: -1.23 },
+  USDT: { price: 1, change24h: 0.01 },
+  SOL: { price: 98.5, change24h: 5.67 },
+  BNB: { price: 312, change24h: 1.45 },
+  DOGE: { price: 0.082, change24h: -2.89 },
+  USDC: { price: 1, change24h: 0.00 },
+  ADA: { price: 0.45, change24h: 3.12 },
+  MATIC: { price: 0.88, change24h: -0.45 },
+  AVAX: { price: 35.2, change24h: 1.89 },
+};
 
 export default function Portfolio() {
   const [showBalance, setShowBalance] = useState(true);
@@ -38,7 +42,26 @@ export default function Portfolio() {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  const totalValue = mockTokens.reduce((acc, t) => acc + (t.balance * t.price), 0);
+  const { data: walletData } = useQuery({
+    queryKey: ['wallet', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const wallets = await base44.entities.Wallet.filter({ user_id: user.id });
+      return wallets[0] || null;
+    },
+    enabled: !!user?.id,
+  });
+
+  const tokens = walletData?.balances 
+    ? Object.entries(walletData.balances).map(([symbol, balance]) => ({
+        symbol,
+        balance: Number(balance) || 0,
+        price: tokenPrices[symbol]?.price || 0,
+        change24h: tokenPrices[symbol]?.change24h || 0,
+      })).filter(t => t.balance > 0)
+    : [];
+
+  const totalValue = walletData?.total_usd_value || tokens.reduce((acc, t) => acc + (t.balance * t.price), 0);
 
   const handleRefresh = async () => {
     return new Promise(resolve => {
@@ -168,23 +191,29 @@ export default function Portfolio() {
               View All
             </button>
           </div>
-          <div className="grid gap-3">
-            {mockTokens.map((token, index) => (
-              <motion.div
-                key={token.symbol}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 + index * 0.05 }}
-              >
-                <TokenCard
-                  symbol={token.symbol}
-                  balance={showBalance ? token.balance : 0}
-                  usdValue={showBalance ? token.balance * token.price : 0}
-                  change24h={token.change24h}
-                />
-              </motion.div>
-            ))}
-          </div>
+          {tokens.length > 0 ? (
+            <div className="grid gap-3">
+              {tokens.map((token, index) => (
+                <motion.div
+                  key={token.symbol}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 + index * 0.05 }}
+                >
+                  <TokenCard
+                    symbol={token.symbol}
+                    balance={showBalance ? token.balance : 0}
+                    usdValue={showBalance ? token.balance * token.price : 0}
+                    change24h={token.change24h}
+                  />
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
+              <p className="text-white/50">No assets found. Start by importing a wallet or making a deposit.</p>
+            </div>
+          )}
         </motion.div>
       </div>
 
