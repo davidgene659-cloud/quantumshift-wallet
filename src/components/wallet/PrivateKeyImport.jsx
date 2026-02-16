@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 // import { base44 } from '@/api/base44Client'; // Ensure this path exists
 
 const networks = [
+  { name: 'Bitcoin', symbol: 'BTC', color: 'from-orange-500 to-amber-500' },
   { name: 'Ethereum', symbol: 'ETH', color: 'from-indigo-500 to-purple-500' },
   { name: 'Binance Smart Chain', symbol: 'BSC', color: 'from-amber-500 to-yellow-500' },
   { name: 'Polygon', symbol: 'MATIC', color: 'from-purple-500 to-pink-500' },
@@ -27,32 +28,71 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
     setSelectedNetworks(prev => prev.includes(symbol) ? prev.filter(s => s !== symbol) : [...prev, symbol]);
   };
 
-  const scanPrivateKeys = async () => {
-    const keys = privateKeys.split('\n').filter(k => k.trim());
-    if (keys.length === 0) return;
+  const parseJsonImport = (text) => {
+    try {
+      const data = JSON.parse(text);
+      const wallets = [];
+      
+      // Handle nested structure like { "Bitcoin": { "Address 1": { "Address": "...", "PrivateKey...": "..." } } }
+      if (data.Bitcoin && typeof data.Bitcoin === 'object') {
+        Object.values(data.Bitcoin).forEach(wallet => {
+          if (wallet.Address && (wallet['PrivateKey(WIF-Compressed)'] || wallet['PrivateKey(WIF-Uncompressed)'])) {
+            wallets.push({
+              address: wallet.Address,
+              privateKey: wallet['PrivateKey(WIF-Compressed)'] || wallet['PrivateKey(WIF-Uncompressed)'],
+              network: 'BTC'
+            });
+          }
+        });
+      }
+      
+      return wallets;
+    } catch {
+      return null;
+    }
+  };
 
+  const scanPrivateKeys = async () => {
     setIsScanning(true);
     setScanResults([]);
 
     try {
-      // Simulate scanning across networks
-      const results = [];
-      for (const key of keys) {
-        for (const network of selectedNetworks) {
-          // In production, this would actually derive addresses and check balances
-          const mockAddress = `0x${Math.random().toString(16).substr(2, 40)}`;
-          const mockBalance = Math.random() * 10;
-          if (mockBalance > 0.01) {
-            results.push({
-              network,
-              address: mockAddress,
-              balance: mockBalance.toFixed(4),
-              key: key.substring(0, 10) + '...'
-            });
+      // Try parsing as JSON first
+      const jsonWallets = parseJsonImport(privateKeys);
+      
+      if (jsonWallets && jsonWallets.length > 0) {
+        // JSON import detected
+        const results = jsonWallets.map(wallet => ({
+          network: wallet.network,
+          address: wallet.address,
+          balance: (Math.random() * 0.5).toFixed(8), // Mock balance
+          key: wallet.privateKey.substring(0, 10) + '...'
+        }));
+        setScanResults(results);
+      } else {
+        // Manual key entry
+        const keys = privateKeys.split('\n').filter(k => k.trim());
+        if (keys.length === 0) return;
+
+        const results = [];
+        for (const key of keys) {
+          for (const network of selectedNetworks) {
+            const mockAddress = network === 'BTC' 
+              ? `${['1', '3', 'bc1'][Math.floor(Math.random() * 3)]}${Math.random().toString(36).substr(2, 9)}`
+              : `0x${Math.random().toString(16).substr(2, 40)}`;
+            const mockBalance = Math.random() * 10;
+            if (mockBalance > 0.01) {
+              results.push({
+                network,
+                address: mockAddress,
+                balance: mockBalance.toFixed(4),
+                key: key.substring(0, 10) + '...'
+              });
+            }
           }
         }
+        setScanResults(results);
       }
-      setScanResults(results);
     } catch (error) {
       console.error('Scan failed:', error);
     } finally {
@@ -88,15 +128,15 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
 
           {/* Private Keys Input */}
           <div>
-            <label className="text-white/70 text-sm mb-2 block">Private Keys (one per line)</label>
+            <label className="text-white/70 text-sm mb-2 block">Private Keys</label>
             <Textarea
               value={privateKeys}
               onChange={(e) => setPrivateKeys(e.target.value)}
-              placeholder="0x1234567890abcdef..."
-              className="bg-white/5 border-white/10 text-white font-mono text-sm h-32"
+              placeholder="Paste JSON format or private keys (one per line)&#x0a;&#x0a;Example JSON:&#x0a;{&#x0a;  &quot;Bitcoin&quot;: {&#x0a;    &quot;Address 1&quot;: {&#x0a;      &quot;Address&quot;: &quot;1ABC...&quot;,&#x0a;      &quot;PrivateKey(WIF-Compressed)&quot;: &quot;L...&quot;&#x0a;    }&#x0a;  }&#x0a;}"
+              className="bg-white/5 border-white/10 text-white font-mono text-sm h-40"
             />
             <p className="text-white/50 text-xs mt-2">
-              {privateKeys.split('\n').filter(k => k.trim()).length} keys entered
+              Supports bulk JSON import or manual entry (one key per line)
             </p>
           </div>
 
