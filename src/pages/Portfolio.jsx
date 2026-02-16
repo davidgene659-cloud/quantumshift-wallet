@@ -12,6 +12,7 @@ import QuickActions from '@/components/wallet/QuickActions';
 import TokenCard from '@/components/wallet/TokenCard';
 import PullToRefresh from '@/components/mobile/PullToRefresh';
 import { PrivateKeyImportDialog } from '@/components/wallet/PrivateKeyImport';
+import AIChatbot from '@/components/chat/AIChatbot';
 import SecurityMonitor from '@/components/ai/SecurityMonitor';
 import PortfolioShield from '@/components/portfolio/PortfolioShield';
 import RewardsSystem from '@/components/gamification/RewardsSystem';
