@@ -6,10 +6,17 @@ import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
 import NFTGallery from '@/components/nft/NFTGallery';
 import NFTCreator from '@/components/nft/NFTCreator';
+import NFTMarketplace from '@/components/nft/NFTMarketplace';
 import AIChatbot from '@/components/chat/AIChatbot';
+import { base44 } from '@/api/base44Client';
 
 export default function NFTs() {
   const [activeTab, setActiveTab] = useState('gallery');
+  const [user, setUser] = React.useState(null);
+
+  React.useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
+  }, []);
 
   return (
     <motion.div
@@ -66,7 +73,7 @@ export default function NFTs() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          {activeTab === 'gallery' ? <NFTGallery /> : <NFTCreator />}
+          {activeTab === 'gallery' ? <NFTMarketplace userId={user?.id} /> : <NFTCreator userId={user?.id} />}
         </motion.div>
       </div>
 
