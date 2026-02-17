@@ -204,7 +204,7 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
             <Textarea
               value={privateKeys}
               onChange={(e) => setPrivateKeys(e.target.value)}
-              placeholder="Paste JSON format or private keys (one per line)&#x0a;&#x0a;Example JSON:&#x0a;{&#x0a;  &quot;Bitcoin&quot;: {&#x0a;    &quot;Address 1&quot;: {&#x0a;      &quot;Address&quot;: &quot;1ABC...&quot;,&#x0a;      &quot;PrivateKey(WIF-Compressed)&quot;: &quot;L...&quot;&#x0a;    }&#x0a;  }&#x0a;}"
+              placeholder="Paste CSV or JSON format&#x0a;&#x0a;CSV Example (one per line):&#x0a;1E9VptEUSTMtwSEuZy96FHDWD2oWhKKFoh,5K1uSGKKYDW5ejGdGPgVJWxhew9XekKwRp7qoeQs7oRV4s5fRZB,Legacy&#x0a;3JZRUzv58k1QzpLn5mY8hAJZpQjf7yMKVu,KyobiF2Mve5Tk1gukitakwKsQ1VcA7Rzh2RXgEBkqrCuyttjRuuB,SegWit&#x0a;&#x0a;JSON Example:&#x0a;{&quot;Bitcoin&quot;: {&quot;Address 1&quot;: {&quot;Address&quot;: &quot;1ABC...&quot;, &quot;PrivateKey(WIF-Compressed)&quot;: &quot;L...&quot;}}}"
               className="bg-white/5 border-white/10 text-white font-mono text-sm h-40"
             />
             <p className="text-white/50 text-xs mt-2">
