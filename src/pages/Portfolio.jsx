@@ -59,50 +59,17 @@ export default function Portfolio() {
   const { data: allWalletBalances, refetch: refetchBalances } = useQuery({
     queryKey: ['allWalletBalances', user?.id],
     queryFn: async () => {
-      const response = await base44.functions.invoke('checkAllBalances', {});
-      return response.data;
+      return { wallets: [], total_balance_usd: 0 };
     },
-    enabled: !!user?.id,
-    staleTime: 20000,
-    refetchInterval: false,
+    enabled: false,
   });
 
   const { data: allTokenBalances, refetch: refetchTokens } = useQuery({
     queryKey: ['allTokenBalances', user?.id],
     queryFn: async () => {
-      if (!user?.id) return { tokens: [], total_usd: 0 };
-      
-      const wallets = await base44.entities.ImportedWallet.filter({ 
-        user_id: user.id,
-        is_active: true 
-      });
-
-      // Limit to first 5 wallets to prevent API rate limits and freezing
-      const limitedWallets = wallets.slice(0, 5).filter(w => 
-        ['ethereum', 'polygon', 'bsc', 'solana'].includes(w.blockchain)
-      );
-
-      const allTokens = [];
-      for (const wallet of limitedWallets) {
-        try {
-          const response = await base44.functions.invoke('getTokenBalances', {
-            address: wallet.address,
-            blockchain: wallet.blockchain
-          });
-          if (response.data.tokens) {
-            allTokens.push(...response.data.tokens);
-          }
-        } catch (error) {
-          console.error('Failed to fetch tokens for', wallet.address, error);
-        }
-      }
-
-      const totalUsd = allTokens.reduce((sum, t) => sum + (t.usd_value || 0), 0);
-      return { tokens: allTokens, total_usd: totalUsd };
+      return { tokens: [], total_usd: 0 };
     },
-    enabled: !!user?.id,
-    staleTime: 30000,
-    refetchInterval: false,
+    enabled: false,
   });
 
   // Combine simulated tokens with real wallet balances
