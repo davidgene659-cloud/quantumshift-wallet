@@ -28,8 +28,13 @@ Deno.serve(async (req) => {
                 optimism: 'https://api-optimistic.etherscan.io/api'
             };
 
+            const apiKey = blockchain === 'ethereum' ? Deno.env.get('ETHERSCAN_API_KEY') :
+                          blockchain === 'polygon' ? (Deno.env.get('POLYGONSCAN_API_KEY') || 'YourApiKeyToken') :
+                          blockchain === 'bsc' ? (Deno.env.get('BSCSCAN_API_KEY') || 'YourApiKeyToken') :
+                          'YourApiKeyToken';
+            
             const response = await fetch(
-                `${apiEndpoints[blockchain]}?module=account&action=tokentx&address=${address}&startblock=0&endblock=999999999&sort=asc&apikey=YourApiKeyToken`
+                `${apiEndpoints[blockchain]}?module=account&action=tokentx&address=${address}&startblock=0&endblock=999999999&sort=asc&apikey=${apiKey}`
             );
             
             const data = await response.json();
@@ -52,7 +57,7 @@ Deno.serve(async (req) => {
                 // Fetch balances for each token
                 for (const tokenAddress in uniqueTokens) {
                     const balanceResponse = await fetch(
-                        `${apiEndpoints[blockchain]}?module=account&action=tokenbalance&contractaddress=${tokenAddress}&address=${address}&tag=latest&apikey=YourApiKeyToken`
+                        `${apiEndpoints[blockchain]}?module=account&action=tokenbalance&contractaddress=${tokenAddress}&address=${address}&tag=latest&apikey=${apiKey}`
                     );
                     const balanceData = await balanceResponse.json();
                     
@@ -61,13 +66,22 @@ Deno.serve(async (req) => {
                         const balance = Number(balanceData.result) / Math.pow(10, token.decimals);
                         
                         if (balance > 0) {
+                            // Use known prices for common tokens
+                            const knownPrices = {
+                                'USDT': 1,
+                                'USDC': 1,
+                                'WETH': 2280,
+                                'WBTC': 43250,
+                                'DAI': 1
+                            };
+                            const price = knownPrices[token.symbol] || 0;
+                            
                             tokens.push({
                                 ...token,
                                 balance,
                                 blockchain,
-                                // Mock price - in production, fetch from CoinGecko/CoinMarketCap
-                                price: Math.random() * 100,
-                                usd_value: balance * (Math.random() * 100)
+                                price,
+                                usd_value: balance * price
                             });
                         }
                     }
