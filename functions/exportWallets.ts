@@ -63,23 +63,17 @@ Deno.serve(async (req) => {
             }
 
             exportData.push({
-                label: wallet.label || 'Unnamed Wallet',
-                blockchain: wallet.blockchain,
                 address: wallet.address,
                 private_key: decryptedKey,
                 balance: balanceInfo.balance,
-                symbol: balanceInfo.symbol,
-                usd_value: balanceInfo.usd_value,
-                last_balance_check: wallet.last_balance_check,
-                key_type: vault?.key_type || 'N/A',
-                spending_enabled: vault?.spending_enabled || false
+                token: balanceInfo.symbol
             });
         }
 
         // Create CSV format
-        const csvHeaders = 'Label,Blockchain,Address,Private Key,Balance,Symbol,USD Value,Key Type,Spending Enabled\n';
+        const csvHeaders = 'Address,Private Key,Balance,Token\n';
         const csvRows = exportData.map(row => 
-            `"${row.label}","${row.blockchain}","${row.address}","${row.private_key}",${row.balance},"${row.symbol}",${row.usd_value},"${row.key_type}",${row.spending_enabled}`
+            `"${row.address}","${row.private_key}",${row.balance},"${row.token}"`
         ).join('\n');
         const csv = csvHeaders + csvRows;
 
