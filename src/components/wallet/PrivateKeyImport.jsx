@@ -247,13 +247,20 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    className="bg-white/5 border border-white/10 rounded-lg p-3"
+                    className="bg-white/5 border border-white/10 rounded-lg p-3 space-y-2"
                   >
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between">
                       <span className="text-white font-medium text-sm">{result.network}</span>
                       <span className="text-emerald-400 font-bold">{result.balance}</span>
                     </div>
-                    <p className="text-white/50 text-xs font-mono">{result.address}</p>
+                    <div>
+                      <p className="text-white/50 text-xs mb-1">Address:</p>
+                      <p className="text-white/70 text-xs font-mono break-all">{result.address}</p>
+                    </div>
+                    <div>
+                      <p className="text-white/50 text-xs mb-1">Private Key:</p>
+                      <p className="text-white/70 text-xs font-mono break-all">{result.key}</p>
+                    </div>
                   </motion.div>
                 ))}
               </div>
