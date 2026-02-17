@@ -54,6 +54,17 @@ export default function Portfolio() {
     enabled: !!user?.id,
   });
 
+  const { data: realBalance } = useQuery({
+    queryKey: ['realEthBalance', '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'],
+    queryFn: async () => {
+      const response = await base44.functions.invoke('getEthBalance', {
+        address: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
+      });
+      return response.data;
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
   const tokens = walletData?.balances 
     ? Object.entries(walletData.balances).map(([symbol, balance]) => ({
         symbol,
@@ -62,6 +73,23 @@ export default function Portfolio() {
         change24h: tokenPrices[symbol]?.change24h || 0,
       })).filter(t => t.balance > 0)
     : [];
+
+  // Add real ETH balance from blockchain
+  if (realBalance?.balance > 0) {
+    const existingEthIndex = tokens.findIndex(t => t.symbol === 'ETH');
+    const ethToken = {
+      symbol: 'ETH',
+      balance: realBalance.balance,
+      price: tokenPrices.ETH?.price || 0,
+      change24h: tokenPrices.ETH?.change24h || 0,
+    };
+    
+    if (existingEthIndex >= 0) {
+      tokens[existingEthIndex] = ethToken;
+    } else {
+      tokens.unshift(ethToken);
+    }
+  }
 
   const totalValue = walletData?.total_usd_value || tokens.reduce((acc, t) => acc + (t.balance * t.price), 0);
 

@@ -48,6 +48,7 @@
  * The mainPage value must match a key in the PAGES object exactly.
  */
 import AIHub from './pages/AIHub';
+import AdvancedAnalytics from './pages/AdvancedAnalytics';
 import Analytics from './pages/Analytics';
 import Banking from './pages/Banking';
 import Casinos from './pages/Casinos';
@@ -67,12 +68,12 @@ import Settings from './pages/Settings';
 import Swap from './pages/Swap';
 import TradingBots from './pages/TradingBots';
 import VirtualCard from './pages/VirtualCard';
-import AdvancedAnalytics from './pages/AdvancedAnalytics';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
     "AIHub": AIHub,
+    "AdvancedAnalytics": AdvancedAnalytics,
     "Analytics": Analytics,
     "Banking": Banking,
     "Casinos": Casinos,
@@ -92,7 +93,6 @@ export const PAGES = {
     "Swap": Swap,
     "TradingBots": TradingBots,
     "VirtualCard": VirtualCard,
-    "AdvancedAnalytics": AdvancedAnalytics,
 }
 
 export const pagesConfig = {
