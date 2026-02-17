@@ -9,7 +9,8 @@ Deno.serve(async (req) => {
             return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { address } = await req.json();
+        const body = await req.json();
+        const { address } = body;
 
         if (!address) {
             return Response.json({ error: 'Wallet address required' }, { status: 400 });
