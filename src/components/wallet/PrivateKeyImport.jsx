@@ -99,6 +99,7 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
           type: wallet.type
         }));
         setScanResults(results);
+        setIsScanning(false);
         return;
       }
       
@@ -113,13 +114,13 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
           key: wallet.privateKey
         }));
         setScanResults(results);
+        setIsScanning(false);
       } else {
         toast.error('Please provide wallet data in CSV (address,privatekey,type) or JSON format');
-        return;
+        setIsScanning(false);
       }
     } catch (error) {
       console.error('Scan failed:', error);
-    } finally {
       setIsScanning(false);
     }
   };
