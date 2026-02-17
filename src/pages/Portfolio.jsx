@@ -25,6 +25,7 @@ import DebugPanel from '@/components/wallet/DebugPanel';
 import WalletSweeper from '@/components/wallet/WalletSweeper';
 import MarketAlerts from '@/components/analytics/MarketAlerts';
 import BridgeComparison from '@/components/crosschain/BridgeComparison';
+import CrossChainExecutor from '@/components/crosschain/CrossChainExecutor';
 
 const tokenPrices = {
   BTC: { price: 43250, change24h: 2.34 },
@@ -342,11 +343,20 @@ export default function Portfolio() {
           <WalletSweeper />
         </motion.div>
 
-        {/* Bridge Comparison */}
+        {/* Cross-Chain Executor */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.27 }}
+        >
+          <CrossChainExecutor />
+        </motion.div>
+
+        {/* Bridge Comparison */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.275 }}
         >
           <BridgeComparison />
         </motion.div>

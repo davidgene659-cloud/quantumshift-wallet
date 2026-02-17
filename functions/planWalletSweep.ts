@@ -59,19 +59,43 @@ Deno.serve(async (req) => {
       let estimatedFee = 0;
       let canSweep = false;
 
-      // Estimate fees based on blockchain
-      if (blockchain === 'bitcoin') {
-        estimatedFee = 0.0001; // ~$4 at current prices
-        canSweep = balanceInfo.balance > estimatedFee * 2;
-      } else if (blockchain === 'ethereum') {
-        estimatedFee = 0.001; // ~$2.28
-        canSweep = balanceInfo.balance > estimatedFee * 2;
-      } else if (blockchain === 'solana') {
-        estimatedFee = 0.000005; // ~$0.0005
-        canSweep = balanceInfo.balance > estimatedFee * 10;
-      } else if (['polygon', 'bsc'].includes(blockchain)) {
-        estimatedFee = 0.001; // ~$0.001
-        canSweep = balanceInfo.balance > estimatedFee * 10;
+      // Enhanced fee estimation using gas oracle
+      try {
+        const gasResponse = await base44.functions.invoke('getGasOracle', {
+          blockchain: blockchain
+        });
+        
+        const gasData = gasResponse.data;
+        
+        if (blockchain === 'bitcoin') {
+          // BTC: fee per byte * estimated transaction size
+          const satPerByte = gasData?.instant || 50;
+          const txSize = 250; // Average transaction size
+          estimatedFee = (satPerByte * txSize) / 1e8;
+          canSweep = balanceInfo.balance > estimatedFee * 3;
+        } else if (blockchain === 'ethereum') {
+          // ETH: gas price * gas limit
+          const gasPriceGwei = gasData?.instant || 50;
+          const gasLimit = 21000;
+          estimatedFee = (gasPriceGwei * gasLimit) / 1e9;
+          canSweep = balanceInfo.balance > estimatedFee * 2.5;
+        } else if (blockchain === 'solana') {
+          estimatedFee = 0.000005;
+          canSweep = balanceInfo.balance > estimatedFee * 10;
+        } else if (['polygon', 'bsc'].includes(blockchain)) {
+          const gasPriceGwei = gasData?.instant || 20;
+          const gasLimit = 21000;
+          estimatedFee = (gasPriceGwei * gasLimit) / 1e9;
+          canSweep = balanceInfo.balance > estimatedFee * 5;
+        }
+      } catch (error) {
+        // Fallback to conservative estimates
+        if (blockchain === 'bitcoin') estimatedFee = 0.0002;
+        else if (blockchain === 'ethereum') estimatedFee = 0.002;
+        else if (blockchain === 'solana') estimatedFee = 0.00001;
+        else estimatedFee = 0.001;
+        
+        canSweep = balanceInfo.balance > estimatedFee * 3;
       }
 
       if (!canSweep) {

@@ -221,6 +221,51 @@ export default function WalletSweeper() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Passphrase Confirmation */}
+      <Dialog open={showPassphraseDialog} onOpenChange={setShowPassphraseDialog}>
+        <DialogContent className="bg-gray-900 border-white/20">
+          <DialogHeader>
+            <DialogTitle className="text-white">Confirm Execution</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+              <p className="text-yellow-300 text-sm">
+                ⚠️ This will execute {sweepPlan?.sweep_plan.length} transactions. Please enter your passphrase to confirm.
+              </p>
+            </div>
+            <div>
+              <label className="text-white/70 text-sm mb-2 block">Passphrase</label>
+              <Input
+                type="password"
+                value={passphrase}
+                onChange={(e) => setPassphrase(e.target.value)}
+                placeholder="Enter your wallet passphrase"
+                className="bg-white/5 border-white/10"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPassphraseDialog(false);
+                setPassphrase('');
+              }}
+              className="bg-white/5 border-white/10"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmExecution}
+              disabled={executing || !passphrase}
+              className="bg-gradient-to-r from-purple-500 to-pink-500"
+            >
+              {executing ? 'Executing...' : 'Confirm & Execute'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
