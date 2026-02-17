@@ -66,35 +66,15 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
         const results = jsonWallets.map(wallet => ({
           network: wallet.network,
           address: wallet.address,
-          balance: (Math.random() * 0.5).toFixed(8), // Mock balance
+          balance: 'Checking...',
           key: wallet.privateKey, // FULL KEY for encryption
           displayKey: wallet.privateKey.substring(0, 10) + '...' // Display only
         }));
         setScanResults(results);
       } else {
-        // Manual key entry - KEEP FULL PRIVATE KEY
-        const keys = privateKeys.split('\n').filter(k => k.trim());
-        if (keys.length === 0) return;
-
-        const results = [];
-        for (const key of keys) {
-          for (const network of selectedNetworks) {
-            const mockAddress = network === 'BTC' 
-              ? `${['1', '3', 'bc1'][Math.floor(Math.random() * 3)]}${Math.random().toString(36).substr(2, 9)}`
-              : `0x${Math.random().toString(16).substr(2, 40)}`;
-            const mockBalance = Math.random() * 10;
-            if (mockBalance > 0.01) {
-              results.push({
-                network,
-                address: mockAddress,
-                balance: mockBalance.toFixed(4),
-                key: key.trim(), // FULL KEY for encryption
-                displayKey: key.substring(0, 10) + '...' // Display only
-              });
-            }
-          }
-        }
-        setScanResults(results);
+        // Manual key entry not supported without address
+        toast.error('Please provide wallet data in JSON format with addresses and private keys');
+        return;
       }
     } catch (error) {
       console.error('Scan failed:', error);
