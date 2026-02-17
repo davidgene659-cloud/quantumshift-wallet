@@ -3,8 +3,8 @@ Deno.serve(async (req) => {
         const body = await req.json();
         const address = body?.address || '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb';
 
-        // Fetch ETH balance from Ethereum mainnet using Infura's public endpoint
-        const response = await fetch('https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161', {
+        // Use Alchemy's public Ethereum RPC endpoint
+        const response = await fetch('https://eth-mainnet.g.alchemy.com/v2/demo', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
