@@ -3,8 +3,8 @@ Deno.serve(async (req) => {
         const body = await req.json();
         const address = body?.address || '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb';
 
-        // Use Alchemy's public Ethereum RPC endpoint
-        const response = await fetch('https://eth-mainnet.g.alchemy.com/v2/demo', {
+        // Use public RPC endpoint
+        const response = await fetch('https://eth.llamarpc.com', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
