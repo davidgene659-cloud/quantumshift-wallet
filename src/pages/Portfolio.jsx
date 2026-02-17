@@ -26,6 +26,7 @@ import WalletSweeper from '@/components/wallet/WalletSweeper';
 import MarketAlerts from '@/components/analytics/MarketAlerts';
 import BridgeComparison from '@/components/crosschain/BridgeComparison';
 import CrossChainExecutor from '@/components/crosschain/CrossChainExecutor';
+import BalanceGuardianWidget from '@/components/ai/BalanceGuardianWidget';
 
 const tokenPrices = {
   BTC: { price: 43250, change24h: 2.34 },
@@ -251,6 +252,20 @@ export default function Portfolio() {
           transition={{ delay: 0.1 }}
         >
           <PortfolioChart totalValue={showBalance ? totalValue : 0} />
+        </motion.div>
+
+        {/* Balance Guardian AI */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.14 }}
+        >
+          <BalanceGuardianWidget
+            totalValue={totalValue}
+            tokens={tokens}
+            allWalletBalances={allWalletBalances}
+            allTokenBalances={allTokenBalances}
+          />
         </motion.div>
 
         {/* Debug Panel */}

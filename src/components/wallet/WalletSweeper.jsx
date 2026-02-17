@@ -9,14 +9,14 @@ import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Shuffle, Clock, TrendingDown, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import TransactionSecurityPrompt from '@/components/security/TransactionSecurityPrompt';
 
 export default function WalletSweeper() {
   const [targetWallet, setTargetWallet] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [sweepPlan, setSweepPlan] = useState(null);
   const [executing, setExecuting] = useState(false);
-  const [passphrase, setPassphrase] = useState('');
-  const [showPassphraseDialog, setShowPassphraseDialog] = useState(false);
+  const [showSecurityPrompt, setShowSecurityPrompt] = useState(false);
 
   const { data: wallets } = useQuery({
     queryKey: ['importedWallets'],
@@ -47,20 +47,18 @@ export default function WalletSweeper() {
 
   const handleExecuteSweep = async () => {
     setShowConfirmation(false);
-    setShowPassphraseDialog(true);
+    setShowSecurityPrompt(true);
   };
 
-  const handleConfirmExecution = async () => {
-    if (!passphrase) {
-      alert('Please enter your passphrase');
-      return;
-    }
-
+  const handleSecurityConfirm = async (securityCredentials) => {
+    setShowSecurityPrompt(false);
     setExecuting(true);
+    
     try {
       const response = await base44.functions.invoke('executeCrossChainSweep', {
         sweep_plan_id: sweepPlan.id,
-        user_passphrase: passphrase,
+        user_passphrase: securityCredentials.credential,
+        security_method: securityCredentials.method,
         sweep_transactions: sweepPlan.sweep_plan.map(tx => ({
           ...tx,
           target_wallet_id: targetWallet,
@@ -70,8 +68,6 @@ export default function WalletSweeper() {
 
       if (response.data.success) {
         alert(`Successfully consolidated ${response.data.summary.success} wallets!`);
-        setShowPassphraseDialog(false);
-        setPassphrase('');
       } else {
         alert('Some transactions failed. Check the results.');
       }
@@ -256,50 +252,17 @@ export default function WalletSweeper() {
         </DialogContent>
       </Dialog>
 
-      {/* Passphrase Confirmation */}
-      <Dialog open={showPassphraseDialog} onOpenChange={setShowPassphraseDialog}>
-        <DialogContent className="bg-gray-900 border-white/20">
-          <DialogHeader>
-            <DialogTitle className="text-white">Confirm Execution</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
-              <p className="text-yellow-300 text-sm">
-                ⚠️ This will execute {sweepPlan?.sweep_plan.length} transactions. Please enter your passphrase to confirm.
-              </p>
-            </div>
-            <div>
-              <label className="text-white/70 text-sm mb-2 block">Passphrase</label>
-              <Input
-                type="password"
-                value={passphrase}
-                onChange={(e) => setPassphrase(e.target.value)}
-                placeholder="Enter your wallet passphrase"
-                className="bg-white/5 border-white/10"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowPassphraseDialog(false);
-                setPassphrase('');
-              }}
-              className="bg-white/5 border-white/10"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleConfirmExecution}
-              disabled={executing || !passphrase}
-              className="bg-gradient-to-r from-purple-500 to-pink-500"
-            >
-              {executing ? 'Executing...' : 'Confirm & Execute'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Enhanced Security Prompt */}
+      <TransactionSecurityPrompt
+        isOpen={showSecurityPrompt}
+        onClose={() => setShowSecurityPrompt(false)}
+        onConfirm={handleSecurityConfirm}
+        transactionDetails={{
+          type: 'Wallet Consolidation',
+          totalValue: sweepPlan?.summary?.total_value_to_sweep_usd || 0,
+          count: sweepPlan?.sweep_plan?.length || 0
+        }}
+      />
     </>
   );
 }
