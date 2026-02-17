@@ -111,15 +111,19 @@ export default function Portfolio() {
                       wallet.blockchain === 'bsc' ? 'BNB' : 'UNKNOWN');
       
       const existingIndex = tokens.findIndex(t => t.symbol === symbol);
+      const price = wallet.price || tokenPrices[symbol]?.price || 0;
       
       if (existingIndex >= 0) {
         tokens[existingIndex].balance += wallet.balance;
+        if (!tokens[existingIndex].price && price > 0) {
+          tokens[existingIndex].price = price;
+        }
         tokens[existingIndex].wallets.push(wallet);
       } else {
         tokens.push({
           symbol,
           balance: wallet.balance,
-          price: wallet.price,
+          price: price,
           change24h: tokenPrices[symbol]?.change24h || 0,
           wallets: [wallet]
         });
