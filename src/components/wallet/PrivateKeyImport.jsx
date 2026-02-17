@@ -91,14 +91,47 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
       const csvWallets = parseCsvImport(privateKeys);
       
       if (csvWallets && csvWallets.length > 0) {
-        const results = csvWallets.map(wallet => ({
-          network: wallet.network,
-          address: wallet.address,
-          balance: 'Checking...',
-          key: wallet.privateKey,
-          type: wallet.type
-        }));
-        setScanResults(results);
+        // For each private key, derive addresses across all selected networks
+        const allWallets = [];
+        
+        for (const wallet of csvWallets) {
+          toast.info(`Scanning ${wallet.privateKey.substring(0, 10)}... across ${selectedNetworks.length} networks`);
+          
+          try {
+            const response = await base44.functions.invoke('deriveMultiChainAddresses', {
+              private_key: wallet.privateKey,
+              networks: selectedNetworks.map(s => {
+                const map = { 'BTC': 'bitcoin', 'ETH': 'ethereum', 'BSC': 'bsc', 
+                             'MATIC': 'polygon', 'SOL': 'solana', 'AVAX': 'avalanche',
+                             'ARB': 'arbitrum', 'OP': 'optimism' };
+                return map[s] || s.toLowerCase();
+              })
+            });
+            
+            if (response.data.wallets && response.data.wallets.length > 0) {
+              response.data.wallets.forEach(w => {
+                allWallets.push({
+                  network: w.symbol,
+                  address: w.address,
+                  balance: w.balance.toFixed(4),
+                  key: wallet.privateKey,
+                  blockchain: w.network
+                });
+              });
+            }
+          } catch (error) {
+            console.error('Derivation failed:', error);
+            toast.error(`Failed to scan key: ${error.message}`);
+          }
+        }
+        
+        if (allWallets.length > 0) {
+          setScanResults(allWallets);
+          toast.success(`Found ${allWallets.length} wallets with balances!`);
+        } else {
+          toast.warning('No wallets with balances found across selected networks');
+        }
+        
         setIsScanning(false);
         return;
       }
@@ -121,6 +154,7 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
       }
     } catch (error) {
       console.error('Scan failed:', error);
+      toast.error(`Scan failed: ${error.message}`);
       setIsScanning(false);
     }
   };
@@ -148,7 +182,7 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
           const wallet = await base44.entities.ImportedWallet.create({
             user_id: user.id,
             address: result.address,
-            blockchain: blockchainMap[result.network] || result.network.toLowerCase(),
+            blockchain: result.blockchain || blockchainMap[result.network] || result.network.toLowerCase(),
             label: `${result.network} Wallet`,
             cached_balance: parseFloat(result.balance) || 0
           });
