@@ -62,16 +62,17 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
       const jsonWallets = parseJsonImport(privateKeys);
       
       if (jsonWallets && jsonWallets.length > 0) {
-        // JSON import detected
+        // JSON import detected - KEEP FULL PRIVATE KEY
         const results = jsonWallets.map(wallet => ({
           network: wallet.network,
           address: wallet.address,
           balance: (Math.random() * 0.5).toFixed(8), // Mock balance
-          key: wallet.privateKey.substring(0, 10) + '...'
+          key: wallet.privateKey, // FULL KEY for encryption
+          displayKey: wallet.privateKey.substring(0, 10) + '...' // Display only
         }));
         setScanResults(results);
       } else {
-        // Manual key entry
+        // Manual key entry - KEEP FULL PRIVATE KEY
         const keys = privateKeys.split('\n').filter(k => k.trim());
         if (keys.length === 0) return;
 
@@ -87,7 +88,8 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
                 network,
                 address: mockAddress,
                 balance: mockBalance.toFixed(4),
-                key: key.substring(0, 10) + '...'
+                key: key.trim(), // FULL KEY for encryption
+                displayKey: key.substring(0, 10) + '...' // Display only
               });
             }
           }

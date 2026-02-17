@@ -63,7 +63,8 @@ export default function Portfolio() {
       return response.data;
     },
     enabled: !!user?.id,
-    refetchInterval: 30000,
+    staleTime: 20000,
+    refetchInterval: false,
   });
 
   const { data: allTokenBalances, refetch: refetchTokens } = useQuery({
@@ -71,35 +72,37 @@ export default function Portfolio() {
     queryFn: async () => {
       if (!user?.id) return { tokens: [], total_usd: 0 };
       
-      // Get all imported wallets
       const wallets = await base44.entities.ImportedWallet.filter({ 
         user_id: user.id,
         is_active: true 
       });
 
-      // Fetch token balances for each wallet that supports tokens
-      const tokenPromises = wallets
-        .filter(w => ['ethereum', 'polygon', 'bsc', 'solana'].includes(w.blockchain))
-        .map(async (wallet) => {
-          try {
-            const response = await base44.functions.invoke('getTokenBalances', {
-              address: wallet.address,
-              blockchain: wallet.blockchain
-            });
-            return response.data.tokens || [];
-          } catch (error) {
-            console.error('Failed to fetch tokens for', wallet.address, error);
-            return [];
+      // Limit to first 5 wallets to prevent API rate limits and freezing
+      const limitedWallets = wallets.slice(0, 5).filter(w => 
+        ['ethereum', 'polygon', 'bsc', 'solana'].includes(w.blockchain)
+      );
+
+      const allTokens = [];
+      for (const wallet of limitedWallets) {
+        try {
+          const response = await base44.functions.invoke('getTokenBalances', {
+            address: wallet.address,
+            blockchain: wallet.blockchain
+          });
+          if (response.data.tokens) {
+            allTokens.push(...response.data.tokens);
           }
-        });
+        } catch (error) {
+          console.error('Failed to fetch tokens for', wallet.address, error);
+        }
+      }
 
-      const allTokens = (await Promise.all(tokenPromises)).flat();
       const totalUsd = allTokens.reduce((sum, t) => sum + (t.usd_value || 0), 0);
-
       return { tokens: allTokens, total_usd: totalUsd };
     },
     enabled: !!user?.id,
-    refetchInterval: 60000, // Refresh every 60 seconds
+    staleTime: 30000,
+    refetchInterval: false,
   });
 
   // Combine simulated tokens with real wallet balances
