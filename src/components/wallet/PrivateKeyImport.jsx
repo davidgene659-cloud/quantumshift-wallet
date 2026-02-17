@@ -117,23 +117,32 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
         'OP': 'optimism'
       };
       
-      // Save wallets to database
-      const walletPromises = scanResults.map(result => 
-        base44.entities.ImportedWallet.create({
+      // Save wallets to database and encrypt private keys
+      const walletPromises = scanResults.map(async (result) => {
+        const wallet = await base44.entities.ImportedWallet.create({
           user_id: user.id,
           address: result.address,
           blockchain: blockchainMap[result.network] || result.network.toLowerCase(),
           label: `${result.network} Wallet`,
           cached_balance: parseFloat(result.balance) || 0
-        })
-      );
+        });
+
+        // Encrypt and store private key securely
+        await base44.functions.invoke('encryptPrivateKey', {
+          private_key: result.key, // The full private key
+          wallet_id: wallet.id,
+          key_type: 'hex'
+        });
+
+        return wallet;
+      });
       
       await Promise.all(walletPromises);
       
       onImport(scanResults);
       setPrivateKeys('');
       setScanResults([]);
-      toast.success(`Successfully imported ${scanResults.length} wallet(s)`);
+      toast.success(`Successfully imported ${scanResults.length} wallet(s) with secure key storage`);
       onClose();
     } catch (error) {
       toast.error('Failed to import wallets: ' + error.message);

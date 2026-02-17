@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { base44 } from '@/api/base44Client';
-import { Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Loader2, CheckCircle2, ArrowRight, Zap, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
+import TransactionBuilder from './TransactionBuilder';
 
 export default function SmartSendDialog({ isOpen, onClose, availableBalances }) {
   const [recipientAddress, setRecipientAddress] = useState('');
@@ -14,6 +15,25 @@ export default function SmartSendDialog({ isOpen, onClose, availableBalances }) 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [recommendation, setRecommendation] = useState(null);
   const [conversationId, setConversationId] = useState(null);
+  const [selectedWallet, setSelectedWallet] = useState(null);
+  const [showTxBuilder, setShowTxBuilder] = useState(false);
+  const [wallets, setWallets] = useState([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadWallets();
+    }
+  }, [isOpen]);
+
+  const loadWallets = async () => {
+    try {
+      const user = await base44.auth.me();
+      const userWallets = await base44.entities.ImportedWallet.filter({ user_id: user.id, is_active: true });
+      setWallets(userWallets);
+    } catch (error) {
+      console.error('Failed to load wallets:', error);
+    }
+  };
 
   const handleAnalyze = async () => {
     if (!amount || !recipientAddress) {
@@ -34,8 +54,18 @@ export default function SmartSendDialog({ isOpen, onClose, availableBalances }) 
 
       setConversationId(conversation.id);
 
-      // Ask the agent to optimize
-      const userMessage = `I want to send ${amount} ${selectedToken} to ${recipientAddress}. Which of my wallets should I use? Analyze transaction fees, available balances, and provide the optimal strategy.`;
+      // Ask the agent to optimize with enhanced context
+      const userMessage = `I want to send ${amount} ${selectedToken} to ${recipientAddress}. 
+
+Analyze:
+1. Which wallet(s) should I use?
+2. Optimal gas settings (slow/standard/fast) with estimated costs
+3. Estimated transaction time
+4. If Bitcoin, analyze UTXO consolidation opportunities
+5. Total cost breakdown including fees
+6. Alternative strategies if applicable
+
+Provide detailed gas optimization recommendations and timing estimates.`;
       
       await base44.agents.addMessage(conversation, {
         role: 'user',
@@ -58,8 +88,23 @@ export default function SmartSendDialog({ isOpen, onClose, availableBalances }) 
   };
 
   const handleExecute = async () => {
-    toast.success('Transaction preparation complete. Review and confirm in your wallet.');
-    onClose();
+    // Find the wallet that matches the selected token
+    const wallet = wallets.find(w => {
+      const symbol = w.blockchain === 'ethereum' ? 'ETH' : 
+                     w.blockchain === 'bitcoin' ? 'BTC' :
+                     w.blockchain === 'solana' ? 'SOL' :
+                     w.blockchain === 'polygon' ? 'MATIC' :
+                     w.blockchain === 'bsc' ? 'BNB' : '';
+      return symbol === selectedToken && w.cached_balance >= parseFloat(amount);
+    });
+
+    if (!wallet) {
+      toast.error('No suitable wallet found with sufficient balance');
+      return;
+    }
+
+    setSelectedWallet(wallet);
+    setShowTxBuilder(true);
   };
 
   return (
@@ -150,12 +195,27 @@ export default function SmartSendDialog({ isOpen, onClose, availableBalances }) 
             </div>
           )}
 
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-            <p className="text-blue-400 text-sm">
-              💡 The AI will analyze all your imported wallets to find the most cost-effective way to send this transaction, considering gas fees, UTXO optimization, and available balances.
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-blue-400" />
+              <p className="text-blue-400 text-sm font-medium">AI-Powered Optimization</p>
+            </div>
+            <p className="text-blue-300 text-xs">
+              Analyzes gas fees, network conditions, UTXO consolidation opportunities, and provides optimal timing recommendations.
             </p>
           </div>
         </div>
+
+        {showTxBuilder && selectedWallet && (
+          <TransactionBuilder
+            isOpen={showTxBuilder}
+            onClose={() => {
+              setShowTxBuilder(false);
+              onClose();
+            }}
+            wallet={selectedWallet}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
