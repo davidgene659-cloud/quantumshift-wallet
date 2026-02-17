@@ -48,25 +48,26 @@ Deno.serve(async (req) => {
             const vault = vaultMap[wallet.id];
             const balanceInfo = balanceMap[wallet.address] || { balance: 0, usd_value: 0, symbol: wallet.blockchain.toUpperCase() };
 
-            let decryptedKey = 'N/A';
+            let decryptedKey = 'NO_PRIVATE_KEY_STORED';
             if (vault) {
                 try {
-                    // Decrypt the private key
-                    const decryptResponse = await base44.functions.invoke('decryptPrivateKey', {
+                    // Decrypt the private key using service role
+                    const decryptResponse = await base44.asServiceRole.functions.invoke('decryptPrivateKey', {
                         encrypted_key: vault.encrypted_private_key,
                         iv: vault.encryption_iv
                     });
                     decryptedKey = decryptResponse.data.private_key;
                 } catch (error) {
-                    decryptedKey = 'DECRYPTION_FAILED';
+                    console.error('Decryption error for wallet:', wallet.address, error);
+                    decryptedKey = `ERROR: ${error.message}`;
                 }
             }
 
             exportData.push({
                 address: wallet.address,
                 private_key: decryptedKey,
-                balance: balanceInfo.balance,
-                token: balanceInfo.symbol
+                balance: balanceInfo.balance || 0,
+                token: balanceInfo.symbol || wallet.blockchain.toUpperCase()
             });
         }
 
