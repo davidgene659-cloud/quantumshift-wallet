@@ -53,6 +53,35 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
     }
   };
 
+  const parseCsvImport = (text) => {
+    const wallets = [];
+    const lines = text.trim().split('\n').filter(line => line.trim());
+    
+    for (const line of lines) {
+      const parts = line.split(',').map(p => p.trim());
+      if (parts.length >= 2) {
+        const [address, privateKey, type] = parts;
+        
+        // Detect network from address format
+        let network = 'BTC';
+        if (address.startsWith('0x')) {
+          network = 'ETH';
+        } else if (address.startsWith('1') || address.startsWith('3') || address.startsWith('bc1')) {
+          network = 'BTC';
+        }
+        
+        wallets.push({
+          address,
+          privateKey,
+          network,
+          type: type || 'Unknown'
+        });
+      }
+    }
+    
+    return wallets.length > 0 ? wallets : null;
+  };
+
   const scanPrivateKeys = async () => {
     setIsScanning(true);
     setScanResults([]);
