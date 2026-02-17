@@ -326,22 +326,25 @@ export default function Portfolio() {
           </div>
           {tokens.length > 0 ? (
             <div className="grid gap-3">
-              {tokens.map((token, index) => (
-                <motion.div
-                  key={`${token.symbol}-${token.contract || index}`}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 + index * 0.05 }}
-                >
-                  <TokenCard
-                    symbol={token.symbol}
-                    name={token.name}
-                    balance={showBalance ? token.balance : 0}
-                    usdValue={showBalance ? token.balance * token.price : 0}
-                    change24h={token.change24h}
-                  />
-                </motion.div>
-              ))}
+              {tokens.map((token, index) => {
+                const tokenUsdValue = token.balance * (token.price || 0);
+                return (
+                  <motion.div
+                    key={`${token.symbol}-${token.contract || index}`}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.3 + index * 0.05 }}
+                  >
+                    <TokenCard
+                      symbol={token.symbol}
+                      name={token.name}
+                      balance={showBalance ? token.balance : 0}
+                      usdValue={showBalance ? tokenUsdValue : 0}
+                      change24h={token.change24h || 0}
+                    />
+                  </motion.div>
+                );
+              })}
             </div>
           ) : (
             <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
