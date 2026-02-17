@@ -3,10 +3,14 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 Deno.serve(async (req) => {
     try {
         const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-
-        if (!user) {
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        
+        // Allow service role calls (no user check needed for service role)
+        const isServiceRole = req.headers.get('x-service-role') === 'true';
+        if (!isServiceRole) {
+            const user = await base44.auth.me();
+            if (!user) {
+                return Response.json({ error: 'Unauthorized' }, { status: 401 });
+            }
         }
 
         const { encrypted_key, iv } = await req.json();
