@@ -28,6 +28,7 @@ Deno.serve(async (req) => {
             try {
                 let balance = 0;
                 let price = 0;
+                let symbol = '';
 
                 if (wallet.blockchain === 'ethereum') {
                     // Check ETH balance using Etherscan API
@@ -38,7 +39,8 @@ Deno.serve(async (req) => {
                     
                     if (data.status === '1') {
                         balance = Number(BigInt(data.result)) / 1e18;
-                        price = 2280; // Approximate ETH price
+                        price = 2280;
+                        symbol = 'ETH';
                     }
                 } else if (wallet.blockchain === 'bitcoin') {
                     // Use blockchain.info API for Bitcoin
@@ -47,7 +49,48 @@ Deno.serve(async (req) => {
                     );
                     const satoshis = await btcResponse.text();
                     balance = Number(satoshis) / 1e8;
-                    price = 43250; // Approximate BTC price
+                    price = 43250;
+                    symbol = 'BTC';
+                } else if (wallet.blockchain === 'solana') {
+                    // Check SOL balance using public RPC
+                    const solResponse = await fetch('https://api.mainnet-beta.solana.com', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            jsonrpc: '2.0',
+                            id: 1,
+                            method: 'getBalance',
+                            params: [wallet.address]
+                        })
+                    });
+                    const solData = await solResponse.json();
+                    if (solData.result) {
+                        balance = solData.result.value / 1e9;
+                        price = 98.5;
+                        symbol = 'SOL';
+                    }
+                } else if (wallet.blockchain === 'polygon') {
+                    // Check MATIC balance using Polygonscan API
+                    const polyResponse = await fetch(
+                        `https://api.polygonscan.com/api?module=account&action=balance&address=${wallet.address}&tag=latest&apikey=YourApiKeyToken`
+                    );
+                    const polyData = await polyResponse.json();
+                    if (polyData.status === '1') {
+                        balance = Number(BigInt(polyData.result)) / 1e18;
+                        price = 0.88;
+                        symbol = 'MATIC';
+                    }
+                } else if (wallet.blockchain === 'bsc') {
+                    // Check BNB balance using BscScan API
+                    const bscResponse = await fetch(
+                        `https://api.bscscan.com/api?module=account&action=balance&address=${wallet.address}&tag=latest&apikey=YourApiKeyToken`
+                    );
+                    const bscData = await bscResponse.json();
+                    if (bscData.status === '1') {
+                        balance = Number(BigInt(bscData.result)) / 1e18;
+                        price = 312;
+                        symbol = 'BNB';
+                    }
                 }
 
                 // Update cached balance
@@ -63,6 +106,7 @@ Deno.serve(async (req) => {
                     label: wallet.label,
                     balance,
                     price,
+                    symbol,
                     usd_value: balance * price
                 };
             } catch (error) {
@@ -74,6 +118,7 @@ Deno.serve(async (req) => {
                     label: wallet.label,
                     balance: wallet.cached_balance || 0,
                     price: 0,
+                    symbol: wallet.blockchain.toUpperCase(),
                     usd_value: 0,
                     error: error.message
                 };

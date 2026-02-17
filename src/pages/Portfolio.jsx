@@ -85,13 +85,18 @@ export default function Portfolio() {
   // Add real imported wallet balances
   if (allWalletBalances?.wallets) {
     allWalletBalances.wallets.forEach(wallet => {
-      const symbol = wallet.blockchain === 'ethereum' ? 'ETH' : 
-                     wallet.blockchain === 'bitcoin' ? 'BTC' : 'UNKNOWN';
+      const symbol = wallet.symbol || 
+                     (wallet.blockchain === 'ethereum' ? 'ETH' : 
+                      wallet.blockchain === 'bitcoin' ? 'BTC' :
+                      wallet.blockchain === 'solana' ? 'SOL' :
+                      wallet.blockchain === 'polygon' ? 'MATIC' :
+                      wallet.blockchain === 'bsc' ? 'BNB' : 'UNKNOWN');
       
       const existingIndex = tokens.findIndex(t => t.symbol === symbol && t.source === 'real');
       
       if (existingIndex >= 0) {
         tokens[existingIndex].balance += wallet.balance;
+        tokens[existingIndex].wallets.push(wallet);
       } else {
         tokens.push({
           symbol,
