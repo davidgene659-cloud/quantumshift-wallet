@@ -8,11 +8,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Shuffle, Clock, TrendingDown, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 export default function WalletSweeper() {
   const [targetWallet, setTargetWallet] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [sweepPlan, setSweepPlan] = useState(null);
+  const [executing, setExecuting] = useState(false);
+  const [passphrase, setPassphrase] = useState('');
+  const [showPassphraseDialog, setShowPassphraseDialog] = useState(false);
 
   const { data: wallets } = useQuery({
     queryKey: ['importedWallets'],
@@ -42,9 +46,39 @@ export default function WalletSweeper() {
   };
 
   const handleExecuteSweep = async () => {
-    // This would call the actual sweep execution function
-    alert('Sweep execution will be implemented with transaction signing');
     setShowConfirmation(false);
+    setShowPassphraseDialog(true);
+  };
+
+  const handleConfirmExecution = async () => {
+    if (!passphrase) {
+      alert('Please enter your passphrase');
+      return;
+    }
+
+    setExecuting(true);
+    try {
+      const response = await base44.functions.invoke('executeCrossChainSweep', {
+        sweep_plan_id: sweepPlan.id,
+        user_passphrase: passphrase,
+        sweep_transactions: sweepPlan.sweep_plan.map(tx => ({
+          ...tx,
+          target_wallet_id: targetWallet,
+          target_address: sweepPlan.target_wallet.address
+        }))
+      });
+
+      if (response.data.success) {
+        alert(`Successfully consolidated ${response.data.summary.success} wallets!`);
+        setShowPassphraseDialog(false);
+        setPassphrase('');
+      } else {
+        alert('Some transactions failed. Check the results.');
+      }
+    } catch (error) {
+      alert('Execution failed: ' + error.message);
+    }
+    setExecuting(false);
   };
 
   return (
