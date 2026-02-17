@@ -43,12 +43,28 @@ Deno.serve(async (req) => {
                         symbol = 'ETH';
                     }
                 } else if (wallet.blockchain === 'bitcoin') {
-                    // Use blockchain.info API for Bitcoin
-                    const btcResponse = await fetch(
-                        `https://blockchain.info/q/addressbalance/${wallet.address}`
-                    );
-                    const satoshis = await btcResponse.text();
-                    balance = Number(satoshis) / 1e8;
+                    // Try multiple free Bitcoin APIs with fallbacks
+                    try {
+                        const btcResponse = await fetch(
+                            `https://blockchain.info/q/addressbalance/${wallet.address}`
+                        );
+                        const satoshis = await btcResponse.text();
+                        balance = Number(satoshis) / 1e8;
+                    } catch {
+                        try {
+                            const blockstreamResponse = await fetch(
+                                `https://blockstream.info/api/address/${wallet.address}`
+                            );
+                            const data = await blockstreamResponse.json();
+                            balance = (data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum) / 1e8;
+                        } catch {
+                            const mempoolResponse = await fetch(
+                                `https://mempool.space/api/address/${wallet.address}`
+                            );
+                            const data = await mempoolResponse.json();
+                            balance = (data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum) / 1e8;
+                        }
+                    }
                     price = 43250;
                     symbol = 'BTC';
                 } else if (wallet.blockchain === 'solana') {
