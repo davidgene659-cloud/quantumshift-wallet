@@ -46,7 +46,7 @@ export default function TokenCard({ symbol, name, balance, usdValue, change24h, 
           <div>
             <h3 className="text-white font-semibold">{symbol}</h3>
             {name && <p className="text-white/40 text-xs">{name}</p>}
-            <p className="text-white/50 text-sm">{balance.toFixed(6)}</p>
+            <p className="text-white/50 text-sm">{balance.toFixed(symbol === 'BTC' ? 8 : 6)} {symbol}</p>
           </div>
         </div>
         <div className="text-right">
