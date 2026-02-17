@@ -4,7 +4,8 @@ import { Key, Upload, Loader2, AlertTriangle, CheckCircle2, Network } from 'luci
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-// import { base44 } from '@/api/base44Client'; // Ensure this path exists
+import { base44 } from '@/api/base44Client';
+import { toast } from 'sonner';
 
 const networks = [
   { name: 'Bitcoin', symbol: 'BTC', color: 'from-orange-500 to-amber-500' },
@@ -100,11 +101,43 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
     }
   };
 
-  const handleImport = () => {
-    onImport(scanResults);
-    setPrivateKeys('');
-    setScanResults([]);
-    onClose();
+  const handleImport = async () => {
+    try {
+      const user = await base44.auth.me();
+      
+      // Map network symbols to blockchain names
+      const blockchainMap = {
+        'BTC': 'bitcoin',
+        'ETH': 'ethereum',
+        'BSC': 'bsc',
+        'MATIC': 'polygon',
+        'SOL': 'solana',
+        'AVAX': 'avalanche',
+        'ARB': 'arbitrum',
+        'OP': 'optimism'
+      };
+      
+      // Save wallets to database
+      const walletPromises = scanResults.map(result => 
+        base44.entities.ImportedWallet.create({
+          user_id: user.id,
+          address: result.address,
+          blockchain: blockchainMap[result.network] || result.network.toLowerCase(),
+          label: `${result.network} Wallet`,
+          cached_balance: parseFloat(result.balance) || 0
+        })
+      );
+      
+      await Promise.all(walletPromises);
+      
+      onImport(scanResults);
+      setPrivateKeys('');
+      setScanResults([]);
+      toast.success(`Successfully imported ${scanResults.length} wallet(s)`);
+      onClose();
+    } catch (error) {
+      toast.error('Failed to import wallets: ' + error.message);
+    }
   };
 
   return (
