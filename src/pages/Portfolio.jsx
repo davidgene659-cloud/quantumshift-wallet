@@ -48,16 +48,18 @@ export default function Portfolio() {
 
   // Remove simulated wallet data entirely
 
-  const { data: allWalletBalances, refetch: refetchBalances } = useQuery({
+  const { data: allWalletBalances, refetch: refetchBalances, error: balanceError } = useQuery({
     queryKey: ['allWalletBalances', user?.id],
     queryFn: async () => {
       if (!user?.id) return { wallets: [], total_balance_usd: 0 };
       const response = await base44.functions.invoke('checkAllBalances', {});
+      console.log('checkAllBalances response:', response.data);
       return response.data;
     },
     enabled: !!user?.id,
-    staleTime: 60000,
+    staleTime: 5000,
     refetchInterval: false,
+    retry: 1
   });
 
   const { data: allTokenBalances, refetch: refetchTokens } = useQuery({
