@@ -118,11 +118,13 @@ export default function Portfolio() {
                       wallet.blockchain === 'bsc' ? 'BNB' : 'UNKNOWN');
       
       const existingIndex = tokens.findIndex(t => t.symbol === symbol);
-      const price = wallet.price || tokenPrices[symbol]?.price || 0;
+      // CRITICAL: Use fallback prices if wallet.price is 0 or missing
+      const price = (wallet.price && wallet.price > 0) ? wallet.price : (tokenPrices[symbol]?.price || 0);
       
       if (existingIndex >= 0) {
         tokens[existingIndex].balance += wallet.balance;
-        if (!tokens[existingIndex].price && price > 0) {
+        // Update price if we have a better one
+        if (price > 0 && (!tokens[existingIndex].price || tokens[existingIndex].price === 0)) {
           tokens[existingIndex].price = price;
         }
         tokens[existingIndex].wallets.push(wallet);
@@ -145,15 +147,20 @@ export default function Portfolio() {
         t.symbol === token.symbol && t.contract === token.contract
       );
       
+      const tokenPrice = (token.price && token.price > 0) ? token.price : (tokenPrices[token.symbol]?.price || 0);
+      
       if (existingIndex >= 0) {
         tokens[existingIndex].balance += token.balance;
+        if (tokenPrice > 0 && (!tokens[existingIndex].price || tokens[existingIndex].price === 0)) {
+          tokens[existingIndex].price = tokenPrice;
+        }
       } else if (token.balance > 0) {
         tokens.push({
           symbol: token.symbol,
           name: token.name,
           contract: token.contract,
           balance: token.balance,
-          price: token.price,
+          price: tokenPrice,
           change24h: 0,
           blockchain: token.blockchain
         });
