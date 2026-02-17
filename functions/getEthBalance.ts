@@ -3,9 +3,9 @@ Deno.serve(async (req) => {
         const body = await req.json();
         const address = body?.address || '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb';
 
-        // Validate address format
-        if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
-            return Response.json({ error: 'Invalid Ethereum address' }, { status: 400 });
+        // Validate address format (checksummed addresses have mixed case)
+        if (!address.match(/^0x[a-fA-F0-9]{39,40}$/i)) {
+            return Response.json({ error: 'Invalid Ethereum address format' }, { status: 400 });
         }
 
         // Use Etherscan API to get balance
