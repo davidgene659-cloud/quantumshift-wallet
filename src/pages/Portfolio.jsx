@@ -326,9 +326,13 @@ export default function Portfolio() {
                 <span className="text-green-400 ml-2">• {tokens.length} tokens</span>
               </p>
               {user && (
-                <p className="text-white/30 text-xs mt-1">
-                  Debug: Native ${realTotal.toFixed(2)} + Tokens ${tokensTotal.toFixed(2)} = ${totalValue.toFixed(2)}
-                </p>
+                <div className="text-white/30 text-xs mt-1 space-y-0.5">
+                  <p>Debug: Native ${realTotal.toFixed(2)} + Tokens ${tokensTotal.toFixed(2)} = ${totalValue.toFixed(2)}</p>
+                  <p>Wallets fetched: {allWalletBalances?.wallets?.length || 0} | Error: {balanceError ? 'YES' : 'NO'}</p>
+                  {allWalletBalances?.wallets?.map((w, i) => (
+                    <p key={i}>{w.symbol}: {w.balance.toFixed(4)} (${w.usd_value.toFixed(2)})</p>
+                  ))}
+                </div>
               )}
             </div>
             <button className="text-purple-400 text-sm font-medium hover:text-purple-300 transition-colors">
