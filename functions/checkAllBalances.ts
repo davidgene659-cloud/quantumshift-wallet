@@ -23,15 +23,27 @@ Deno.serve(async (req) => {
             });
         }
 
-        // Fetch balances for each wallet
-        const balancePromises = wallets.map(async (wallet) => {
+        // Rotating Bitcoin APIs to avoid rate limits
+        const btcAPIs = [
+            { name: 'blockstream', url: (addr) => `https://blockstream.info/api/address/${addr}`, parse: (d) => (d.chain_stats.funded_txo_sum - d.chain_stats.spent_txo_sum) / 1e8 },
+            { name: 'mempool', url: (addr) => `https://mempool.space/api/address/${addr}`, parse: (d) => (d.chain_stats.funded_txo_sum - d.chain_stats.spent_txo_sum) / 1e8 },
+            { name: 'blockcypher', url: (addr) => `https://api.blockcypher.com/v1/btc/main/addrs/${addr}/balance`, parse: (d) => d.balance / 1e8 }
+        ];
+        
+        let btcAPIIndex = 0;
+
+        // Check balances sequentially with small delays to avoid overwhelming APIs
+        const walletBalances = [];
+        
+        for (let i = 0; i < wallets.length; i++) {
+            const wallet = wallets[i];
+            
             try {
                 let balance = 0;
                 let price = 0;
                 let symbol = '';
 
                 if (wallet.blockchain === 'ethereum') {
-                    // Check ETH balance using Etherscan API
                     const etherscanResponse = await fetch(
                         `https://api.etherscan.io/api?module=account&action=balance&address=${wallet.address}&tag=latest&apikey=${Deno.env.get('ETHERSCAN_API_KEY')}`
                     );
@@ -43,91 +55,65 @@ Deno.serve(async (req) => {
                         symbol = 'ETH';
                     }
                 } else if (wallet.blockchain === 'bitcoin') {
-                    // Try multiple free Bitcoin APIs with fallbacks
-                    try {
-                        const btcResponse = await fetch(
-                            `https://blockchain.info/q/addressbalance/${wallet.address}`
-                        );
-                        const satoshis = await btcResponse.text();
-                        balance = Number(satoshis) / 1e8;
-                    } catch {
+                    // Rotate through Bitcoin APIs
+                    let apiWorked = false;
+                    
+                    for (let attempt = 0; attempt < btcAPIs.length && !apiWorked; attempt++) {
+                        const api = btcAPIs[btcAPIIndex];
+                        btcAPIIndex = (btcAPIIndex + 1) % btcAPIs.length;
+                        
                         try {
-                            const blockstreamResponse = await fetch(
-                                `https://blockstream.info/api/address/${wallet.address}`
-                            );
-                            const data = await blockstreamResponse.json();
-                            balance = (data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum) / 1e8;
-                        } catch {
-                            const mempoolResponse = await fetch(
-                                `https://mempool.space/api/address/${wallet.address}`
-                            );
-                            const data = await mempoolResponse.json();
-                            balance = (data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum) / 1e8;
+                            const response = await fetch(api.url(wallet.address), {
+                                signal: AbortSignal.timeout(5000)
+                            });
+                            
+                            if (response.ok) {
+                                const data = await response.json();
+                                balance = api.parse(data);
+                                apiWorked = true;
+                            }
+                        } catch (err) {
+                            console.log(`BTC API ${api.name} failed for ${wallet.address}: ${err.message}`);
                         }
                     }
+                    
+                    // If all APIs fail, use cached balance
+                    if (!apiWorked) {
+                        balance = wallet.cached_balance || 0;
+                        console.log(`Using cached balance for ${wallet.address}`);
+                    }
+                    
                     price = 43250;
                     symbol = 'BTC';
-                } else if (wallet.blockchain === 'solana') {
-                    // Check SOL balance using public RPC
-                    const solResponse = await fetch('https://api.mainnet-beta.solana.com', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            jsonrpc: '2.0',
-                            id: 1,
-                            method: 'getBalance',
-                            params: [wallet.address]
-                        })
-                    });
-                    const solData = await solResponse.json();
-                    if (solData.result) {
-                        balance = solData.result.value / 1e9;
-                        price = 98.5;
-                        symbol = 'SOL';
-                    }
-                } else if (wallet.blockchain === 'polygon') {
-                    // Check MATIC balance using Polygonscan API
-                    const polyResponse = await fetch(
-                        `https://api.polygonscan.com/api?module=account&action=balance&address=${wallet.address}&tag=latest&apikey=${Deno.env.get('POLYGONSCAN_API_KEY') || 'YourApiKeyToken'}`
-                    );
-                    const polyData = await polyResponse.json();
-                    if (polyData.status === '1') {
-                        balance = Number(BigInt(polyData.result)) / 1e18;
-                        price = 0.88;
-                        symbol = 'MATIC';
-                    }
-                } else if (wallet.blockchain === 'bsc') {
-                    // Check BNB balance using BscScan API
-                    const bscResponse = await fetch(
-                        `https://api.bscscan.com/api?module=account&action=balance&address=${wallet.address}&tag=latest&apikey=${Deno.env.get('BSCSCAN_API_KEY') || 'YourApiKeyToken'}`
-                    );
-                    const bscData = await bscResponse.json();
-                    if (bscData.status === '1') {
-                        balance = Number(BigInt(bscData.result)) / 1e18;
-                        price = 312;
-                        symbol = 'BNB';
-                    }
                 }
 
-                // Update cached balance
-                await base44.asServiceRole.entities.ImportedWallet.update(wallet.id, {
-                    cached_balance: balance,
-                    last_balance_check: new Date().toISOString()
-                });
+                // Update cached balance if we got a fresh one
+                if (balance > 0 || wallet.cached_balance !== balance) {
+                    await base44.asServiceRole.entities.ImportedWallet.update(wallet.id, {
+                        cached_balance: balance,
+                        last_balance_check: new Date().toISOString()
+                    });
+                }
 
-                return {
+                walletBalances.push({
                     id: wallet.id,
                     address: wallet.address,
                     blockchain: wallet.blockchain,
                     label: wallet.label,
                     balance,
                     price,
-                    symbol,
+                    symbol: symbol || wallet.blockchain.toUpperCase(),
                     usd_value: balance * price
-                };
+                });
+                
+                // Small delay between requests to avoid rate limits
+                if (i < wallets.length - 1 && wallet.blockchain === 'bitcoin') {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
             } catch (error) {
                 console.error(`Error checking wallet ${wallet.address}:`, error);
-                return {
+                // Still add the wallet with cached balance
+                walletBalances.push({
                     id: wallet.id,
                     address: wallet.address,
                     blockchain: wallet.blockchain,
@@ -135,13 +121,11 @@ Deno.serve(async (req) => {
                     balance: wallet.cached_balance || 0,
                     price: 0,
                     symbol: wallet.blockchain.toUpperCase(),
-                    usd_value: 0,
-                    error: error.message
-                };
+                    usd_value: 0
+                });
             }
-        });
+        }
 
-        const walletBalances = await Promise.all(balancePromises);
         const totalBalanceUsd = walletBalances.reduce((sum, w) => sum + w.usd_value, 0);
 
         return Response.json({
