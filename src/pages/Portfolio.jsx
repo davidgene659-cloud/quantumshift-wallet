@@ -323,6 +323,11 @@ export default function Portfolio() {
                 Total Spendable: {showBalance ? `$${totalValue.toFixed(2)}` : '••••••'} 
                 <span className="text-green-400 ml-2">• {tokens.length} tokens</span>
               </p>
+              {user && (
+                <p className="text-white/30 text-xs mt-1">
+                  Debug: Native ${realTotal.toFixed(2)} + Tokens ${tokensTotal.toFixed(2)} = ${totalValue.toFixed(2)}
+                </p>
+              )}
             </div>
             <button className="text-purple-400 text-sm font-medium hover:text-purple-300 transition-colors">
               View All
