@@ -30,6 +30,9 @@ const tokenColors = {
 
 export default function TokenCard({ symbol, name, balance, usdValue, change24h, onClick }) {
   const isPositive = change24h >= 0;
+  const safeBalance = balance || 0;
+  const safeUsdValue = usdValue || 0;
+  const safeChange = change24h || 0;
   
   return (
     <motion.div
@@ -46,14 +49,14 @@ export default function TokenCard({ symbol, name, balance, usdValue, change24h, 
           <div>
             <h3 className="text-white font-semibold">{symbol}</h3>
             {name && <p className="text-white/40 text-xs">{name}</p>}
-            <p className="text-white/50 text-sm">{balance.toFixed(symbol === 'BTC' ? 8 : 6)} {symbol}</p>
+            <p className="text-white/50 text-sm">{safeBalance.toFixed(symbol === 'BTC' ? 8 : 6)} {symbol}</p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-white font-semibold">${usdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p className="text-white font-semibold">${safeUsdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           <div className={`flex items-center justify-end gap-1 text-sm ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
             {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-            <span>{isPositive ? '+' : ''}{change24h.toFixed(2)}%</span>
+            <span>{isPositive ? '+' : ''}{safeChange.toFixed(2)}%</span>
           </div>
         </div>
       </div>
