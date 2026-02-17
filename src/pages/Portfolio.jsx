@@ -54,48 +54,65 @@ export default function Portfolio() {
     enabled: !!user?.id,
   });
 
-  const { data: realBalance } = useQuery({
-    queryKey: ['realEthBalance', '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'],
+  const { data: allWalletBalances, refetch: refetchBalances } = useQuery({
+    queryKey: ['allWalletBalances', user?.id],
     queryFn: async () => {
-      const response = await base44.functions.invoke('getEthBalance', {
-        address: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
-      });
+      const response = await base44.functions.invoke('checkAllBalances', {});
       return response.data;
     },
+    enabled: !!user?.id,
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  const tokens = walletData?.balances 
-    ? Object.entries(walletData.balances).map(([symbol, balance]) => ({
-        symbol,
-        balance: Number(balance) || 0,
-        price: tokenPrices[symbol]?.price || 0,
-        change24h: tokenPrices[symbol]?.change24h || 0,
-      })).filter(t => t.balance > 0)
-    : [];
-
-  // Add real ETH balance from blockchain
-  if (realBalance?.balance > 0) {
-    const existingEthIndex = tokens.findIndex(t => t.symbol === 'ETH');
-    const ethToken = {
-      symbol: 'ETH',
-      balance: realBalance.balance,
-      price: tokenPrices.ETH?.price || 0,
-      change24h: tokenPrices.ETH?.change24h || 0,
-    };
-    
-    if (existingEthIndex >= 0) {
-      tokens[existingEthIndex] = ethToken;
-    } else {
-      tokens.unshift(ethToken);
-    }
+  // Combine simulated tokens with real wallet balances
+  const tokens = [];
+  
+  // Add simulated balances
+  if (walletData?.balances) {
+    Object.entries(walletData.balances).forEach(([symbol, balance]) => {
+      if (Number(balance) > 0) {
+        tokens.push({
+          symbol,
+          balance: Number(balance) || 0,
+          price: tokenPrices[symbol]?.price || 0,
+          change24h: tokenPrices[symbol]?.change24h || 0,
+          source: 'simulated'
+        });
+      }
+    });
   }
 
-  const totalValue = walletData?.total_usd_value || tokens.reduce((acc, t) => acc + (t.balance * t.price), 0);
+  // Add real imported wallet balances
+  if (allWalletBalances?.wallets) {
+    allWalletBalances.wallets.forEach(wallet => {
+      const symbol = wallet.blockchain === 'ethereum' ? 'ETH' : 
+                     wallet.blockchain === 'bitcoin' ? 'BTC' : 'UNKNOWN';
+      
+      const existingIndex = tokens.findIndex(t => t.symbol === symbol && t.source === 'real');
+      
+      if (existingIndex >= 0) {
+        tokens[existingIndex].balance += wallet.balance;
+      } else {
+        tokens.push({
+          symbol,
+          balance: wallet.balance,
+          price: wallet.price,
+          change24h: tokenPrices[symbol]?.change24h || 0,
+          source: 'real',
+          wallets: [wallet]
+        });
+      }
+    });
+  }
+
+  const simulatedTotal = walletData?.total_usd_value || 0;
+  const realTotal = allWalletBalances?.total_balance_usd || 0;
+  const totalValue = simulatedTotal + realTotal;
 
   const handleRefresh = async () => {
+    await refetchBalances();
     return new Promise(resolve => {
-      setTimeout(resolve, 1000);
+      setTimeout(resolve, 500);
     });
   };
 
