@@ -87,22 +87,34 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
     setScanResults([]);
 
     try {
-      // Try parsing as JSON first
+      // Try parsing as CSV first (format: address,privatekey,type)
+      const csvWallets = parseCsvImport(privateKeys);
+      
+      if (csvWallets && csvWallets.length > 0) {
+        const results = csvWallets.map(wallet => ({
+          network: wallet.network,
+          address: wallet.address,
+          balance: 'Checking...',
+          key: wallet.privateKey,
+          type: wallet.type
+        }));
+        setScanResults(results);
+        return;
+      }
+      
+      // Try parsing as JSON
       const jsonWallets = parseJsonImport(privateKeys);
       
       if (jsonWallets && jsonWallets.length > 0) {
-        // JSON import detected - KEEP FULL PRIVATE KEY
         const results = jsonWallets.map(wallet => ({
           network: wallet.network,
           address: wallet.address,
           balance: 'Checking...',
-          key: wallet.privateKey, // FULL KEY for encryption
-          displayKey: wallet.privateKey.substring(0, 10) + '...' // Display only
+          key: wallet.privateKey
         }));
         setScanResults(results);
       } else {
-        // Manual key entry not supported without address
-        toast.error('Please provide wallet data in JSON format with addresses and private keys');
+        toast.error('Please provide wallet data in CSV (address,privatekey,type) or JSON format');
         return;
       }
     } catch (error) {
