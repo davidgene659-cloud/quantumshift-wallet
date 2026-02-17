@@ -21,6 +21,10 @@ import { Download, Gift, BarChart3 } from 'lucide-react';
 import DashboardCustomizer from '@/components/analytics/DashboardCustomizer';
 import CrossChainBridge from '@/components/portfolio/CrossChainBridge';
 import AssetDistribution from '@/components/portfolio/AssetDistribution';
+import DebugPanel from '@/components/wallet/DebugPanel';
+import WalletSweeper from '@/components/wallet/WalletSweeper';
+import MarketAlerts from '@/components/analytics/MarketAlerts';
+import BridgeComparison from '@/components/crosschain/BridgeComparison';
 
 const tokenPrices = {
   BTC: { price: 43250, change24h: 2.34 },
@@ -62,7 +66,7 @@ export default function Portfolio() {
     retry: 1
   });
 
-  const { data: allTokenBalances, refetch: refetchTokens } = useQuery({
+  const { data: allTokenBalances, refetch: refetchTokens, error: tokenError } = useQuery({
     queryKey: ['allTokenBalances', user?.id],
     queryFn: async () => {
       if (!user?.id) return { tokens: [], total_usd: 0 };
@@ -95,8 +99,9 @@ export default function Portfolio() {
       return { tokens: allTokens, total_usd: totalUsd };
     },
     enabled: !!user?.id,
-    staleTime: 60000,
+    staleTime: 5000,
     refetchInterval: false,
+    retry: 1
   });
 
   // Only real wallet balances
@@ -240,11 +245,38 @@ export default function Portfolio() {
           <PortfolioChart totalValue={showBalance ? totalValue : 0} />
         </motion.div>
 
-        {/* Security Monitor */}
+        {/* Debug Panel */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
+        >
+          <DebugPanel
+            allWalletBalances={allWalletBalances}
+            allTokenBalances={allTokenBalances}
+            balanceError={balanceError}
+            tokenError={tokenError}
+            totalValue={totalValue}
+            realTotal={realTotal}
+            tokensTotal={tokensTotal}
+            tokens={tokens}
+          />
+        </motion.div>
+
+        {/* Market Alerts */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.16 }}
+        >
+          <MarketAlerts />
+        </motion.div>
+
+        {/* Security Monitor */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.17 }}
         >
           <SecurityMonitor />
         </motion.div>
@@ -294,11 +326,29 @@ export default function Portfolio() {
           <RewardsSystem />
         </motion.div>
 
-        {/* Cross-Chain Bridge */}
+        {/* Wallet Sweeper */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.26 }}
+        >
+          <WalletSweeper />
+        </motion.div>
+
+        {/* Bridge Comparison */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.27 }}
+        >
+          <BridgeComparison />
+        </motion.div>
+
+        {/* Cross-Chain Bridge */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.28 }}
         >
           <CrossChainBridge tokens={tokens} />
         </motion.div>
@@ -321,19 +371,18 @@ export default function Portfolio() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-xl font-bold text-white">Your Assets</h2>
-              <p className="text-white/50 text-sm mt-1">
-                Total Spendable: {showBalance ? `$${totalValue.toFixed(2)}` : '••••••'} 
-                <span className="text-green-400 ml-2">• {tokens.length} tokens</span>
-              </p>
-              {user && (
-                <div className="text-white/30 text-xs mt-1 space-y-0.5">
-                  <p>Debug: Native ${realTotal.toFixed(2)} + Tokens ${tokensTotal.toFixed(2)} = ${totalValue.toFixed(2)}</p>
-                  <p>Wallets fetched: {allWalletBalances?.wallets?.length || 0} | Error: {balanceError ? 'YES' : 'NO'}</p>
-                  {allWalletBalances?.wallets?.map((w, i) => (
-                    <p key={i}>{w.symbol}: {w.balance.toFixed(4)} (${w.usd_value.toFixed(2)})</p>
-                  ))}
+              <div className="mt-2 space-y-1">
+                <p className="text-white/50 text-sm">
+                  Total Spendable: {showBalance ? `$${totalValue.toFixed(2)}` : '••••••'}
+                </p>
+                <div className="flex items-center gap-4 text-xs text-white/40">
+                  <span>Native: ${showBalance ? realTotal.toFixed(2) : '••••'}</span>
+                  <span>•</span>
+                  <span>Tokens: ${showBalance ? tokensTotal.toFixed(2) : '••••'}</span>
+                  <span>•</span>
+                  <span className="text-green-400">{tokens.length} assets</span>
                 </div>
-              )}
+              </div>
             </div>
             <button className="text-purple-400 text-sm font-medium hover:text-purple-300 transition-colors">
               View All
