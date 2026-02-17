@@ -17,12 +17,15 @@ Deno.serve(async (req) => {
 
         let tokens = [];
 
-        if (blockchain === 'ethereum' || blockchain === 'polygon' || blockchain === 'bsc') {
-            // Fetch ERC-20 tokens using appropriate API
+        if (blockchain === 'ethereum' || blockchain === 'polygon' || blockchain === 'bsc' || blockchain === 'avalanche' || blockchain === 'arbitrum' || blockchain === 'optimism') {
+            // Fetch ERC-20/BEP-20 tokens using appropriate API
             const apiEndpoints = {
                 ethereum: 'https://api.etherscan.io/api',
                 polygon: 'https://api.polygonscan.com/api',
-                bsc: 'https://api.bscscan.com/api'
+                bsc: 'https://api.bscscan.com/api',
+                avalanche: 'https://api.snowtrace.io/api',
+                arbitrum: 'https://api.arbiscan.io/api',
+                optimism: 'https://api-optimistic.etherscan.io/api'
             };
 
             const response = await fetch(
@@ -104,6 +107,28 @@ Deno.serve(async (req) => {
                             blockchain: 'solana',
                             price: Math.random() * 10,
                             usd_value: balance * (Math.random() * 10)
+                        });
+                    }
+                }
+            }
+        } else if (blockchain === 'tron') {
+            // Fetch TRC-20 tokens from Tron network
+            const response = await fetch(`https://apilist.tronscan.org/api/account/tokens?address=${address}&start=0&limit=50`);
+            const data = await response.json();
+            
+            if (data.data) {
+                for (const token of data.data) {
+                    if (token.balance && parseFloat(token.balance) > 0) {
+                        const balance = parseFloat(token.balance) / Math.pow(10, token.tokenDecimal || 6);
+                        tokens.push({
+                            contract: token.tokenId,
+                            symbol: token.tokenAbbr,
+                            name: token.tokenName,
+                            decimals: token.tokenDecimal || 6,
+                            balance,
+                            blockchain: 'tron',
+                            price: Math.random() * 50,
+                            usd_value: balance * (Math.random() * 50)
                         });
                     }
                 }

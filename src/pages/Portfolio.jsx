@@ -19,6 +19,8 @@ import RewardsSystem from '@/components/gamification/RewardsSystem';
 import SponsorBanner from '@/components/sponsors/SponsorBanner';
 import { Download, Gift, BarChart3 } from 'lucide-react';
 import DashboardCustomizer from '@/components/analytics/DashboardCustomizer';
+import CrossChainBridge from '@/components/portfolio/CrossChainBridge';
+import AssetDistribution from '@/components/portfolio/AssetDistribution';
 
 const tokenPrices = {
   BTC: { price: 43250, change24h: 2.34 },
@@ -307,6 +309,24 @@ export default function Portfolio() {
           transition={{ delay: 0.25 }}
         >
           <RewardsSystem />
+        </motion.div>
+
+        {/* Cross-Chain Bridge */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.27 }}
+        >
+          <CrossChainBridge tokens={tokens} />
+        </motion.div>
+
+        {/* Asset Distribution */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.28 }}
+        >
+          <AssetDistribution tokens={tokens} totalValue={totalValue} />
         </motion.div>
 
         {/* Token Holdings */}

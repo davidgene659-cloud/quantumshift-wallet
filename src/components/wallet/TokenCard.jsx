@@ -28,7 +28,7 @@ const tokenColors = {
   MATIC: 'from-violet-500 to-purple-600'
 };
 
-export default function TokenCard({ symbol, balance, usdValue, change24h, onClick }) {
+export default function TokenCard({ symbol, name, balance, usdValue, change24h, onClick }) {
   const isPositive = change24h >= 0;
   
   return (
@@ -45,6 +45,7 @@ export default function TokenCard({ symbol, balance, usdValue, change24h, onClic
           </div>
           <div>
             <h3 className="text-white font-semibold">{symbol}</h3>
+            {name && <p className="text-white/40 text-xs">{name}</p>}
             <p className="text-white/50 text-sm">{balance.toFixed(6)}</p>
           </div>
         </div>
