@@ -208,7 +208,7 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
               className="bg-white/5 border-white/10 text-white font-mono text-sm h-40"
             />
             <p className="text-white/50 text-xs mt-2">
-              Supports bulk JSON import or manual entry (one key per line)
+              Supports CSV format (address,privatekey,type) or JSON bulk import
             </p>
           </div>
 
