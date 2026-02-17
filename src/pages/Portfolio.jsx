@@ -236,7 +236,31 @@ export default function Portfolio() {
                   style={{ minHeight: '44px' }}
                 >
                   <Download className="w-5 h-5 text-white" />
-                  <span className="text-white font-medium text-sm">Import Wallet</span>
+                  <span className="text-white font-medium text-sm">Import</span>
+                </button>
+                <button 
+                  onClick={async () => {
+                    try {
+                      const response = await base44.functions.invoke('exportWallets', {});
+                      const blob = new Blob([response.data], { type: 'text/csv' });
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `wallet-export-${Date.now()}.csv`;
+                      document.body.appendChild(a);
+                      a.click();
+                      window.URL.revokeObjectURL(url);
+                      a.remove();
+                    } catch (error) {
+                      console.error('Export failed:', error);
+                      alert('Export failed. Please try again.');
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 transition-all select-none flex items-center gap-2" 
+                  style={{ minHeight: '44px' }}
+                >
+                  <Download className="w-5 h-5 text-white rotate-180" />
+                  <span className="text-white font-medium text-sm">Export</span>
                 </button>
                 <Link to={createPageUrl('Settings')}>
                   <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none" style={{ minWidth: '44px', minHeight: '44px' }}>
