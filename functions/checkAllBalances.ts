@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
                 if (wallet.blockchain === 'ethereum') {
                     // Check ETH balance using Etherscan API
                     const etherscanResponse = await fetch(
-                        `https://api.etherscan.io/api?module=account&action=balance&address=${wallet.address}&tag=latest&apikey=YourApiKeyToken`
+                        `https://api.etherscan.io/api?module=account&action=balance&address=${wallet.address}&tag=latest&apikey=${Deno.env.get('ETHERSCAN_API_KEY')}`
                     );
                     const data = await etherscanResponse.json();
                     
@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
                 } else if (wallet.blockchain === 'polygon') {
                     // Check MATIC balance using Polygonscan API
                     const polyResponse = await fetch(
-                        `https://api.polygonscan.com/api?module=account&action=balance&address=${wallet.address}&tag=latest&apikey=YourApiKeyToken`
+                        `https://api.polygonscan.com/api?module=account&action=balance&address=${wallet.address}&tag=latest&apikey=${Deno.env.get('POLYGONSCAN_API_KEY') || 'YourApiKeyToken'}`
                     );
                     const polyData = await polyResponse.json();
                     if (polyData.status === '1') {
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
                 } else if (wallet.blockchain === 'bsc') {
                     // Check BNB balance using BscScan API
                     const bscResponse = await fetch(
-                        `https://api.bscscan.com/api?module=account&action=balance&address=${wallet.address}&tag=latest&apikey=YourApiKeyToken`
+                        `https://api.bscscan.com/api?module=account&action=balance&address=${wallet.address}&tag=latest&apikey=${Deno.env.get('BSCSCAN_API_KEY') || 'YourApiKeyToken'}`
                     );
                     const bscData = await bscResponse.json();
                     if (bscData.status === '1') {
