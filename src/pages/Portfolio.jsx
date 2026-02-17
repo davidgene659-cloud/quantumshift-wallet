@@ -61,7 +61,43 @@ export default function Portfolio() {
       return response.data;
     },
     enabled: !!user?.id,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
+  });
+
+  const { data: allTokenBalances, refetch: refetchTokens } = useQuery({
+    queryKey: ['allTokenBalances', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return { tokens: [], total_usd: 0 };
+      
+      // Get all imported wallets
+      const wallets = await base44.entities.ImportedWallet.filter({ 
+        user_id: user.id,
+        is_active: true 
+      });
+
+      // Fetch token balances for each wallet that supports tokens
+      const tokenPromises = wallets
+        .filter(w => ['ethereum', 'polygon', 'bsc', 'solana'].includes(w.blockchain))
+        .map(async (wallet) => {
+          try {
+            const response = await base44.functions.invoke('getTokenBalances', {
+              address: wallet.address,
+              blockchain: wallet.blockchain
+            });
+            return response.data.tokens || [];
+          } catch (error) {
+            console.error('Failed to fetch tokens for', wallet.address, error);
+            return [];
+          }
+        });
+
+      const allTokens = (await Promise.all(tokenPromises)).flat();
+      const totalUsd = allTokens.reduce((sum, t) => sum + (t.usd_value || 0), 0);
+
+      return { tokens: allTokens, total_usd: totalUsd };
+    },
+    enabled: !!user?.id,
+    refetchInterval: 60000, // Refresh every 60 seconds
   });
 
   // Combine simulated tokens with real wallet balances
@@ -82,7 +118,7 @@ export default function Portfolio() {
     });
   }
 
-  // Add real imported wallet balances
+  // Add real imported wallet balances (native coins)
   if (allWalletBalances?.wallets) {
     allWalletBalances.wallets.forEach(wallet => {
       const symbol = wallet.symbol || 
@@ -110,12 +146,37 @@ export default function Portfolio() {
     });
   }
 
+  // Add ERC-20/SPL token balances
+  if (allTokenBalances?.tokens) {
+    allTokenBalances.tokens.forEach(token => {
+      const existingIndex = tokens.findIndex(t => 
+        t.symbol === token.symbol && t.contract === token.contract
+      );
+      
+      if (existingIndex >= 0) {
+        tokens[existingIndex].balance += token.balance;
+      } else if (token.balance > 0) {
+        tokens.push({
+          symbol: token.symbol,
+          name: token.name,
+          contract: token.contract,
+          balance: token.balance,
+          price: token.price,
+          change24h: 0,
+          source: 'token',
+          blockchain: token.blockchain
+        });
+      }
+    });
+  }
+
   const simulatedTotal = walletData?.total_usd_value || 0;
   const realTotal = allWalletBalances?.total_balance_usd || 0;
-  const totalValue = simulatedTotal + realTotal;
+  const tokensTotal = allTokenBalances?.total_usd || 0;
+  const totalValue = simulatedTotal + realTotal + tokensTotal;
 
   const handleRefresh = async () => {
-    await refetchBalances();
+    await Promise.all([refetchBalances(), refetchTokens()]);
     return new Promise(resolve => {
       setTimeout(resolve, 500);
     });
@@ -255,7 +316,13 @@ export default function Portfolio() {
           transition={{ delay: 0.3 }}
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">Your Assets</h2>
+            <div>
+              <h2 className="text-xl font-bold text-white">Your Assets</h2>
+              <p className="text-white/50 text-sm mt-1">
+                Total Spendable: {showBalance ? `$${totalValue.toFixed(2)}` : '••••••'} 
+                <span className="text-green-400 ml-2">• {tokens.length} tokens</span>
+              </p>
+            </div>
             <button className="text-purple-400 text-sm font-medium hover:text-purple-300 transition-colors">
               View All
             </button>
@@ -264,13 +331,14 @@ export default function Portfolio() {
             <div className="grid gap-3">
               {tokens.map((token, index) => (
                 <motion.div
-                  key={token.symbol}
+                  key={`${token.symbol}-${token.contract || index}`}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.3 + index * 0.05 }}
                 >
                   <TokenCard
                     symbol={token.symbol}
+                    name={token.name}
                     balance={showBalance ? token.balance : 0}
                     usdValue={showBalance ? token.balance * token.price : 0}
                     change24h={token.change24h}
