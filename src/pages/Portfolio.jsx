@@ -46,51 +46,61 @@ export default function Portfolio() {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  const { data: walletData } = useQuery({
-    queryKey: ['wallet', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      const wallets = await base44.entities.Wallet.filter({ user_id: user.id });
-      return wallets[0] || null;
-    },
-    enabled: !!user?.id,
-  });
+  // Remove simulated wallet data entirely
 
   const { data: allWalletBalances, refetch: refetchBalances } = useQuery({
     queryKey: ['allWalletBalances', user?.id],
     queryFn: async () => {
-      return { wallets: [], total_balance_usd: 0 };
+      if (!user?.id) return { wallets: [], total_balance_usd: 0 };
+      const response = await base44.functions.invoke('checkAllBalances', {});
+      return response.data;
     },
-    enabled: false,
+    enabled: !!user?.id,
+    staleTime: 60000,
+    refetchInterval: false,
   });
 
   const { data: allTokenBalances, refetch: refetchTokens } = useQuery({
     queryKey: ['allTokenBalances', user?.id],
     queryFn: async () => {
-      return { tokens: [], total_usd: 0 };
+      if (!user?.id) return { tokens: [], total_usd: 0 };
+      
+      const wallets = await base44.entities.ImportedWallet.filter({ 
+        user_id: user.id,
+        is_active: true 
+      });
+
+      const tokenChainWallets = wallets.filter(w => 
+        ['ethereum', 'polygon', 'bsc', 'solana'].includes(w.blockchain)
+      ).slice(0, 3);
+
+      const allTokens = [];
+      for (const wallet of tokenChainWallets) {
+        try {
+          const response = await base44.functions.invoke('getTokenBalances', {
+            address: wallet.address,
+            blockchain: wallet.blockchain
+          });
+          if (response.data.tokens) {
+            allTokens.push(...response.data.tokens);
+          }
+        } catch (error) {
+          console.error('Token fetch failed:', wallet.address);
+        }
+      }
+
+      const totalUsd = allTokens.reduce((sum, t) => sum + (t.usd_value || 0), 0);
+      return { tokens: allTokens, total_usd: totalUsd };
     },
-    enabled: false,
+    enabled: !!user?.id,
+    staleTime: 60000,
+    refetchInterval: false,
   });
 
-  // Combine simulated tokens with real wallet balances
+  // Only real wallet balances
   const tokens = [];
-  
-  // Add simulated balances
-  if (walletData?.balances) {
-    Object.entries(walletData.balances).forEach(([symbol, balance]) => {
-      if (Number(balance) > 0) {
-        tokens.push({
-          symbol,
-          balance: Number(balance) || 0,
-          price: tokenPrices[symbol]?.price || 0,
-          change24h: tokenPrices[symbol]?.change24h || 0,
-          source: 'simulated'
-        });
-      }
-    });
-  }
 
-  // Add real imported wallet balances (native coins)
+  // Add native coin balances from imported wallets
   if (allWalletBalances?.wallets) {
     allWalletBalances.wallets.forEach(wallet => {
       const symbol = wallet.symbol || 
@@ -100,7 +110,7 @@ export default function Portfolio() {
                       wallet.blockchain === 'polygon' ? 'MATIC' :
                       wallet.blockchain === 'bsc' ? 'BNB' : 'UNKNOWN');
       
-      const existingIndex = tokens.findIndex(t => t.symbol === symbol && t.source === 'real');
+      const existingIndex = tokens.findIndex(t => t.symbol === symbol);
       
       if (existingIndex >= 0) {
         tokens[existingIndex].balance += wallet.balance;
@@ -111,14 +121,13 @@ export default function Portfolio() {
           balance: wallet.balance,
           price: wallet.price,
           change24h: tokenPrices[symbol]?.change24h || 0,
-          source: 'real',
           wallets: [wallet]
         });
       }
     });
   }
 
-  // Add ERC-20/SPL token balances
+  // Add ERC-20/BEP-20/SPL token balances
   if (allTokenBalances?.tokens) {
     allTokenBalances.tokens.forEach(token => {
       const existingIndex = tokens.findIndex(t => 
@@ -135,17 +144,15 @@ export default function Portfolio() {
           balance: token.balance,
           price: token.price,
           change24h: 0,
-          source: 'token',
           blockchain: token.blockchain
         });
       }
     });
   }
 
-  const simulatedTotal = walletData?.total_usd_value || 0;
   const realTotal = allWalletBalances?.total_balance_usd || 0;
   const tokensTotal = allTokenBalances?.total_usd || 0;
-  const totalValue = simulatedTotal + realTotal + tokensTotal;
+  const totalValue = realTotal + tokensTotal;
 
   const handleRefresh = async () => {
     await Promise.all([refetchBalances(), refetchTokens()]);
