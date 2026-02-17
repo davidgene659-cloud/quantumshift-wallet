@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,13 +14,18 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Calendar,
-  DollarSign
+  DollarSign,
+  Coins,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { base44 } from '@/api/base44Client';
 
 export default function WalletDetails({ wallet }) {
   const [showFullAddress, setShowFullAddress] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [tokens, setTokens] = useState([]);
+  const [loadingTokens, setLoadingTokens] = useState(false);
 
   const mockAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb";
   const mockTransactions = [
@@ -31,9 +36,32 @@ export default function WalletDetails({ wallet }) {
   ];
 
   const copyAddress = () => {
-    navigator.clipboard.writeText(mockAddress);
+    navigator.clipboard.writeText(wallet?.address || mockAddress);
     toast.success('Address copied to clipboard');
   };
+
+  // Load tokens in the background
+  useEffect(() => {
+    if (wallet && ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'].includes(wallet.blockchain)) {
+      setLoadingTokens(true);
+      
+      base44.functions.invoke('getWalletTokens', {
+        address: wallet.address,
+        blockchain: wallet.blockchain
+      })
+      .then(response => {
+        if (response.data.tokens) {
+          setTokens(response.data.tokens);
+        }
+      })
+      .catch(error => {
+        console.error('Failed to load tokens:', error);
+      })
+      .finally(() => {
+        setLoadingTokens(false);
+      });
+    }
+  }, [wallet]);
 
   return (
     <div className="space-y-4">
@@ -61,7 +89,9 @@ export default function WalletDetails({ wallet }) {
               </button>
             </div>
             <p className="text-white font-mono text-sm mb-3">
-              {showFullAddress ? mockAddress : `${mockAddress.slice(0, 6)}...${mockAddress.slice(-4)}`}
+              {showFullAddress 
+                ? (wallet?.address || mockAddress) 
+                : `${(wallet?.address || mockAddress).slice(0, 6)}...${(wallet?.address || mockAddress).slice(-4)}`}
             </p>
             <div className="flex gap-2">
               <Button
@@ -134,6 +164,56 @@ export default function WalletDetails({ wallet }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Token Holdings */}
+      {wallet && ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'].includes(wallet.blockchain) && (
+        <Card className="bg-gradient-to-br from-white/10 to-white/5 border-white/20">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Coins className="w-5 h-5" />
+              Token Holdings
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingTokens ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+                <span className="ml-2 text-white/70">Loading tokens...</span>
+              </div>
+            ) : tokens.length > 0 ? (
+              <div className="space-y-2">
+                {tokens.map((token, idx) => (
+                  <div 
+                    key={idx}
+                    className="bg-black/30 rounded-xl p-4 hover:bg-black/40 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                          <span className="text-white font-bold text-sm">{token.symbol.charAt(0)}</span>
+                        </div>
+                        <div>
+                          <p className="text-white font-medium text-sm">{token.symbol}</p>
+                          <p className="text-white/50 text-xs">{token.name}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-white font-semibold">{token.balance}</p>
+                        <p className="text-white/50 text-xs">{token.symbol}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Coins className="w-12 h-12 text-white/30 mx-auto mb-2" />
+                <p className="text-white/50 text-sm">No tokens found</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent Transactions */}
       <Card className="bg-gradient-to-br from-white/10 to-white/5 border-white/20">
