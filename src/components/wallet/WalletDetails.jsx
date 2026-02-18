@@ -267,3 +267,136 @@ export default function WalletDetails({ wallet }) {
     </div>
   );
 }
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import {
+  Wallet,
+  Copy,
+  QrCode,
+  Eye,
+  EyeOff,
+  DollarSign,
+  Loader2,
+  AlertTriangle
+} from 'lucide-react';
+import { toast } from 'sonner';
+
+const { ethers } = window;
+
+const truncate = (str, start = 6, end = 4) =>
+  str ? `${str.slice(0, start)}...${str.slice(-end)}` : '';
+
+export default function WalletDetails({ wallet }) {
+  const [showFullAddress, setShowFullAddress] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+  const [showPrivateKey, setShowPrivateKey] = useState(false);
+  const [privateKey, setPrivateKey] = useState('');
+  const [loadingKey, setLoadingKey] = useState(false);
+  const [address, setAddress] = useState('');
+
+  useEffect(() => {
+    if (!wallet?.mnemonic) return;
+    try {
+      const hdNode = ethers.HDNodeWallet.fromPhrase(wallet.mnemonic);
+      setAddress(hdNode.address);
+    } catch (e) {
+      console.error('Failed to derive address:', e);
+    }
+  }, [wallet?.mnemonic]);
+
+  useEffect(() => {
+    if (!wallet?.id) return;
+    const fetchPrivateKey = async () => {
+      setLoadingKey(true);
+      try {
+        const response = await fetch(`/api/get-private-key?wallet_id=${wallet.id}`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } // adjust auth
+        });
+        const data = await response.json();
+        if (data.private_key) setPrivateKey(data.private_key);
+        else toast.error('Private key not found');
+      } catch (err) {
+        console.error('Failed to fetch private key:', err);
+        toast.error('Could not load private key');
+      } finally {
+        setLoadingKey(false);
+      }
+    };
+    fetchPrivateKey();
+  }, [wallet?.id]);
+
+  const copyToClipboard = (text, label) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="bg-red-900/30 border-red-500/30">
+        <CardContent className="p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5" />
+          <div className="text-xs text-red-300">
+            <strong>Security Warning:</strong> Private key shown for development only. Never expose in production.
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-gradient-to-br from-white/10 to-white/5 border-white/20">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Wallet className="w-5 h-5" />
+            Wallet Address
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="bg-black/30 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-white/50 text-xs">Address</span>
+              <button onClick={() => setShowFullAddress(!showFullAddress)} className="p-1 hover:bg-white/10 rounded-lg">
+                {showFullAddress ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-white font-mono text-sm mb-3 break-all">
+              {showFullAddress ? address : truncate(address)}
+            </p>
+            <div className="flex gap-2">
+              <Button onClick={() => copyToClipboard(address, 'Address')} variant="outline" size="sm" className="flex-1">
+                <Copy className="w-4 h-4 mr-2" /> Copy
+              </Button>
+              <Button onClick={() => setShowQR(!showQR)} variant="outline" size="sm" className="flex-1">
+                <QrCode className="w-4 h-4 mr-2" /> QR Code
+              </Button>
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {showQR && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                <div className="bg-black/30 rounded-xl p-4 flex justify-center">
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${address}`} alt="QR" className="w-40 h-40 rounded-lg" />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="bg-black/30 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-white/50 text-xs">Private Key</span>
+              <button onClick={() => setShowPrivateKey(!showPrivateKey)} className="p-1 hover:bg-white/10 rounded-lg" disabled={loadingKey}>
+                {showPrivateKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-white font-mono text-sm mb-3 break-all">
+              {loadingKey ? 'Loading...' : (showPrivateKey ? privateKey : truncate(privateKey))}
+            </p>
+            <Button onClick={() => copyToClipboard(privateKey, 'Private key')} variant="outline" size="sm" className="w-full" disabled={!privateKey}>
+              <Copy className="w-4 h-4 mr-2" /> Copy Private Key
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
