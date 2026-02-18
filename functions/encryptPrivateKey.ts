@@ -8,7 +8,7 @@ Deno.serve(async (req) => {
 
     const { private_key, wallet_id, key_type = 'hex' } = await req.json();
     if (!private_key || !wallet_id) {
-      return Response.json({ error: 'Private key and wallet_id required' }, { status: 400 });
+      return Response.json({ error: 'Private key and wallet_iV required' }, { status: 400 });
     }
 
     const dataKey = `wallet_${user.id}_${wallet_id}_private_key`;
