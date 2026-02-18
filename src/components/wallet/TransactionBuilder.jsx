@@ -4,17 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Lock, Zap, Clock, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Loader2, Lock, Zap, Clock, DollarSign, AlertTriangle, CheckCircle2, Coins } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Global libraries – check for correct global names
+// Global libraries
 const { ethers } = window;
-const bitcoin = window.bitcoin;               // bitcoinjs-lib exposes window.bitcoin
-const bip32 = window.bip32;                   // bip32 exposes window.bip32
-const bip39 = window.bip39;                   // bip39 exposes window.bip39
-const ecc = window.tinysecp256k1;              // tiny-secp256k1 exposes window.tinysecp256k1
+const bitcoin = window.bitcoin;
+const bip32 = window.bip32;
+const bip39 = window.bip39;
+const ecc = window.tinysecp256k1;
 
-// Initialize bitcoinjs-lib with the secp256k1 library (required for signing)
 if (bitcoin && ecc) {
   bitcoin.initEccLib(ecc);
 }
@@ -25,60 +24,75 @@ const NETWORKS = {
     type: 'evm',
     name: 'Ethereum',
     chainId: 1,
-    rpcUrl: 'https://mainnet.infura.io/v3/YOUR_INFURA_KEY', // Replace with your Infura key
+    rpcUrl: 'https://your-quicknode-endpoint.quiknode.pro/your-api-key/', // Replace with QuickNode endpoint
     nativeSymbol: 'ETH',
-    explorer: 'https://etherscan.io/tx/'
+    explorer: 'https://etherscan.io/tx/',
+    quickNodeEndpoint: true
   },
   base: {
     type: 'evm',
     name: 'Base',
     chainId: 8453,
-    rpcUrl: 'https://mainnet.base.org',
+    rpcUrl: 'https://your-quicknode-endpoint.quiknode.pro/your-api-key/', // Replace with QuickNode endpoint
     nativeSymbol: 'ETH',
-    explorer: 'https://basescan.org/tx/'
+    explorer: 'https://basescan.org/tx/',
+    quickNodeEndpoint: true
   },
   polygon: {
     type: 'evm',
     name: 'Polygon',
     chainId: 137,
-    rpcUrl: 'https://polygon-rpc.com',
+    rpcUrl: 'https://your-quicknode-endpoint.quiknode.pro/your-api-key/', // Replace with QuickNode endpoint
     nativeSymbol: 'MATIC',
-    explorer: 'https://polygonscan.com/tx/'
+    explorer: 'https://polygonscan.com/tx/',
+    quickNodeEndpoint: true
   },
   bsc: {
     type: 'evm',
     name: 'BNB Smart Chain',
     chainId: 56,
-    rpcUrl: 'https://bsc-dataseed.binance.org',
+    rpcUrl: 'https://your-quicknode-endpoint.quiknode.pro/your-api-key/', // Replace with QuickNode endpoint
     nativeSymbol: 'BNB',
-    explorer: 'https://bscscan.com/tx/'
+    explorer: 'https://bscscan.com/tx/',
+    quickNodeEndpoint: true
   },
   arbitrum: {
     type: 'evm',
     name: 'Arbitrum',
     chainId: 42161,
-    rpcUrl: 'https://arb1.arbitrum.io/rpc',
+    rpcUrl: 'https://your-quicknode-endpoint.quiknode.pro/your-api-key/', // Replace with QuickNode endpoint
     nativeSymbol: 'ETH',
-    explorer: 'https://arbiscan.io/tx/'
+    explorer: 'https://arbiscan.io/tx/',
+    quickNodeEndpoint: true
   },
   optimism: {
     type: 'evm',
     name: 'Optimism',
     chainId: 10,
-    rpcUrl: 'https://mainnet.optimism.io',
+    rpcUrl: 'https://your-quicknode-endpoint.quiknode.pro/your-api-key/', // Replace with QuickNode endpoint
     nativeSymbol: 'ETH',
-    explorer: 'https://optimistic.etherscan.io/tx/'
+    explorer: 'https://optimistic.etherscan.io/tx/',
+    quickNodeEndpoint: true
   },
   bitcoin: {
     type: 'utxo',
     name: 'Bitcoin',
-    network: bitcoin?.networks?.bitcoin || { message: 'Bitcoin network not loaded' }, // fallback
+    network: bitcoin?.networks?.bitcoin,
     apiBase: 'https://mempool.space/api',
     nativeSymbol: 'BTC',
     explorer: 'https://mempool.space/tx/',
-    derivationPath: "m/44'/0'/0'/0/0" // BIP44 for Bitcoin mainnet
+    derivationPath: "m/44'/0'/0'/0/0"
   }
 };
+
+// Minimal ERC20 ABI for balanceOf and transfer
+const ERC20_ABI = [
+  'function balanceOf(address owner) view returns (uint256)',
+  'function transfer(address to, uint256 amount) returns (bool)',
+  'function decimals() view returns (uint8)',
+  'function symbol() view returns (string)',
+  'function name() view returns (string)'
+];
 
 export default function TransactionBuilder({ isOpen, onClose, wallet }) {
   // Step: 1=details, 2=fee, 3=review, 4=result
@@ -86,6 +100,8 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
   const [selectedNetwork, setSelectedNetwork] = useState(wallet?.blockchain || 'ethereum');
   const [toAddress, setToAddress] = useState('');
   const [amount, setAmount] = useState('');
+  const [selectedToken, setSelectedToken] = useState(null); // null = native currency
+  const [tokenList, setTokenList] = useState([]);
   const [feeOption, setFeeOption] = useState('standard');
   const [txPreview, setTxPreview] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -97,54 +113,55 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
   const [evmBalance, setEvmBalance] = useState(null);
   const [gasPrices, setGasPrices] = useState(null);
   const [estimatedGas, setEstimatedGas] = useState(null);
+  const [tokenBalances, setTokenBalances] = useState({}); // address -> balance
   
   // Bitcoin-specific state
   const [btcAddress, setBtcAddress] = useState('');
-  const [btcPrivateKey, setBtcPrivateKey] = useState(null); // Will hold the bip32 node
-  const [btcBalance, setBtcBalance] = useState(null); // in satoshis
+  const [btcPrivateKey, setBtcPrivateKey] = useState(null);
+  const [btcBalance, setBtcBalance] = useState(null);
   const [utxos, setUtxos] = useState([]);
-  const [feeRates, setFeeRates] = useState(null); // { fastestFee, halfHourFee, hourFee } from mempool.space
+  const [feeRates, setFeeRates] = useState(null);
   const [estimatedVSize, setEstimatedVSize] = useState(null);
-  const [selectedUtxos, setSelectedUtxos] = useState([]); // UTXOs we will spend
+  const [selectedUtxos, setSelectedUtxos] = useState([]);
 
-  // Derive keys from mnemonic when component opens
+  // Derive keys from mnemonic
   useEffect(() => {
     if (!wallet?.mnemonic) return;
     try {
-      // ----- EVM derivation (using ethers) -----
+      // EVM derivation
       const evmNode = ethers.HDNodeWallet.fromPhrase(wallet.mnemonic);
       setEvmPrivateKey(evmNode.privateKey);
       setEvmAddress(evmNode.address);
 
-      // ----- Bitcoin derivation (using bip39 + bip32) -----
+      // Bitcoin derivation
       if (bip39 && bip32 && bitcoin) {
-        // Convert mnemonic to seed
         const seed = bip39.mnemonicToSeedSync(wallet.mnemonic);
         const root = bip32.fromSeed(seed, bitcoin.networks.bitcoin);
         const btcNode = root.derivePath(NETWORKS.bitcoin.derivationPath);
         setBtcPrivateKey(btcNode);
         setBtcAddress(bitcoin.payments.p2pkh({ pubkey: btcNode.publicKey, network: bitcoin.networks.bitcoin }).address);
-      } else {
-        console.warn('Bitcoin libraries not loaded – Bitcoin functionality disabled');
       }
     } catch (e) {
       console.error('Failed to derive keys:', e);
-      toast.error('Invalid mnemonic or missing libraries');
+      toast.error('Invalid mnemonic');
     }
   }, [wallet?.mnemonic]);
 
-  // Reset state when dialog closes
+  // Reset state on close
   useEffect(() => {
     if (!isOpen) {
       setStep(1);
       setToAddress('');
       setAmount('');
+      setSelectedToken(null);
+      setTokenList([]);
       setFeeOption('standard');
       setTxPreview(null);
       setTxResult(null);
       setEvmBalance(null);
       setGasPrices(null);
       setEstimatedGas(null);
+      setTokenBalances({});
       setBtcBalance(null);
       setUtxos([]);
       setFeeRates(null);
@@ -153,7 +170,7 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
     }
   }, [isOpen]);
 
-  // Fetch network-specific data when inputs change
+  // Fetch network data (balances, gas, fees)
   useEffect(() => {
     const network = NETWORKS[selectedNetwork];
     if (!network) return;
@@ -162,10 +179,12 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
       if (!evmAddress) return;
       const provider = new ethers.JsonRpcProvider(network.rpcUrl);
 
+      // Native balance
       provider.getBalance(evmAddress).then(bal => {
         setEvmBalance(ethers.formatEther(bal));
       }).catch(console.error);
 
+      // Gas prices
       provider.getFeeData().then(fees => {
         const baseGasPrice = fees.gasPrice;
         setGasPrices({
@@ -175,7 +194,8 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
         });
       }).catch(console.error);
 
-      if (toAddress && amount && parseFloat(amount) > 0 && ethers.isAddress(toAddress)) {
+      // Estimate gas for native transfer (if applicable)
+      if (toAddress && amount && parseFloat(amount) > 0 && ethers.isAddress(toAddress) && !selectedToken) {
         const value = ethers.parseEther(amount);
         provider.estimateGas({
           from: evmAddress,
@@ -186,48 +206,88 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
         }).catch(err => {
           console.error('Gas estimation failed:', err);
           setEstimatedGas(null);
-          toast.error('Could not estimate gas. Check recipient address or amount.');
         });
       }
-    } else if (network.type === 'utxo' && network.name === 'Bitcoin') {
-      if (!btcAddress) return;
 
-      // Fetch balance and UTXOs
+      // Fetch ALL token balances using QuickNode Token API [citation:5]
+      if (network.quickNodeEndpoint) {
+        provider.send('qn_getWalletTokenBalance', [{
+          wallet: evmAddress
+        }]).then(result => {
+          if (result && result.assets) {
+            const tokens = result.assets.map(asset => ({
+              address: asset.address,
+              symbol: asset.symbol,
+              name: asset.name,
+              decimals: asset.decimals,
+              balance: ethers.formatUnits(asset.amount, asset.decimals),
+              rawBalance: asset.amount
+            }));
+            setTokenList(tokens);
+            
+            // Store raw balances for quick lookup
+            const balanceMap = {};
+            tokens.forEach(t => {
+              balanceMap[t.address.toLowerCase()] = t.rawBalance;
+            });
+            setTokenBalances(balanceMap);
+          }
+        }).catch(err => {
+          console.error('Failed to fetch token balances:', err);
+          toast.error('Could not fetch token balances');
+        });
+      }
+    } else if (network.type === 'utxo') {
+      // Bitcoin data fetching (unchanged)
+      if (!btcAddress) return;
+      
       fetch(`${network.apiBase}/address/${btcAddress}`)
         .then(res => res.json())
         .then(data => {
           const funded = data.chain_stats.funded_txo_sum;
           const spent = data.chain_stats.spent_txo_sum;
           setBtcBalance(funded - spent);
-        })
-        .catch(err => {
-          console.error('Failed to fetch BTC balance:', err);
-          toast.error('Could not fetch Bitcoin balance');
-        });
+        }).catch(console.error);
 
       fetch(`${network.apiBase}/address/${btcAddress}/utxo`)
         .then(res => res.json())
         .then(setUtxos)
-        .catch(err => {
-          console.error('Failed to fetch UTXOs:', err);
-          toast.error('Could not fetch UTXOs');
-        });
+        .catch(console.error);
 
-      // Fetch recommended fee rates
       fetch(`${network.apiBase}/v1/fees/recommended`)
         .then(res => res.json())
         .then(data => {
           setFeeRates({
-            slow: data.hourFee,      // sat/vbyte
+            slow: data.hourFee,
             standard: data.halfHourFee,
             fast: data.fastestFee
           });
-        })
-        .catch(console.error);
+        }).catch(console.error);
     }
-  }, [selectedNetwork, evmAddress, btcAddress, toAddress, amount]);
+  }, [selectedNetwork, evmAddress, btcAddress, toAddress, amount, selectedToken]);
 
-  // Simple UTXO selection: select enough UTXOs to cover amount + fee (approximate)
+  // Estimate gas for token transfer when token is selected
+  useEffect(() => {
+    if (!selectedToken || !toAddress || !amount || !evmAddress) return;
+    
+    const network = NETWORKS[selectedNetwork];
+    const provider = new ethers.JsonRpcProvider(network.rpcUrl);
+    
+    const tokenContract = new ethers.Contract(selectedToken.address, ERC20_ABI, provider);
+    const amountInWei = ethers.parseUnits(amount, selectedToken.decimals);
+    
+    tokenContract.transfer.estimateGas(toAddress, amountInWei, { from: evmAddress })
+      .then(gas => {
+        setEstimatedGas(gas);
+      })
+      .catch(err => {
+        console.error('Token gas estimation failed:', err);
+        setEstimatedGas(null);
+        toast.error('Cannot estimate gas. Check recipient address or amount.');
+      });
+  }, [selectedToken, toAddress, amount, evmAddress, selectedNetwork]);
+
+  // Simple UTXO selection for Bitcoin (unchanged)
   useEffect(() => {
     if (!utxos.length || !amount || !feeRates || !feeOption) {
       setSelectedUtxos([]);
@@ -236,29 +296,26 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
     }
     const amountSat = Math.floor(parseFloat(amount) * 1e8);
     const feeRate = feeRates[feeOption];
-    // Start with a dummy vsize to approximate fee
     let selected = [];
     let totalSelected = 0;
-    let vsize = 10; // overhead
+    let vsize = 10;
     for (const utxo of utxos) {
       selected.push(utxo);
       totalSelected += utxo.value;
-      vsize += 68; // approximate input size
-      // Rough fee: (vsize) * feeRate
+      vsize += 68;
       const estimatedFee = vsize * feeRate;
       if (totalSelected >= amountSat + estimatedFee) break;
     }
     if (totalSelected < amountSat) {
-      // Not enough funds
       setSelectedUtxos([]);
       setEstimatedVSize(null);
     } else {
       setSelectedUtxos(selected);
-      setEstimatedVSize(vsize + 31 * 2); // add two outputs (recipient + change)
+      setEstimatedVSize(vsize + 31 * 2);
     }
   }, [utxos, amount, feeRates, feeOption]);
 
-  // Compute fee options for the current network
+  // Compute fee options
   const getFeeOptions = () => {
     const network = NETWORKS[selectedNetwork];
     if (!network) return [];
@@ -333,7 +390,7 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
 
   const handleNext = () => {
     if (step === 1) {
-      // Validate step 1
+      // Validation
       const network = NETWORKS[selectedNetwork];
       if (!toAddress || !amount) {
         toast.error('Please fill in all fields');
@@ -351,12 +408,24 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
         toast.error('Amount must be greater than 0');
         return;
       }
-      // Check balance
-      if (network.type === 'evm' && evmBalance && parseFloat(amount) > parseFloat(evmBalance)) {
-        toast.error('Insufficient balance');
-        return;
-      }
-      if (network.type === 'utxo' && btcBalance !== null) {
+
+      // Balance check
+      if (network.type === 'evm') {
+        if (selectedToken) {
+          // Check token balance
+          const token = tokenList.find(t => t.address === selectedToken.address);
+          if (!token || parseFloat(amount) > parseFloat(token.balance)) {
+            toast.error(`Insufficient ${selectedToken.symbol} balance`);
+            return;
+          }
+        } else {
+          // Check native balance
+          if (evmBalance && parseFloat(amount) > parseFloat(evmBalance)) {
+            toast.error('Insufficient native balance');
+            return;
+          }
+        }
+      } else if (network.type === 'utxo' && btcBalance !== null) {
         const amountSat = Math.floor(parseFloat(amount) * 1e8);
         if (amountSat > btcBalance) {
           toast.error('Insufficient balance');
@@ -369,23 +438,20 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
         toast.error('Fee estimation not ready. Please wait.');
         return;
       }
-      // Build preview based on network type
+      // Build preview
       const network = NETWORKS[selectedNetwork];
       if (network.type === 'evm') {
-        const value = ethers.parseEther(amount);
         const gasPrice = gasPrices[feeOption];
-        const tx = {
-          from: evmAddress,
+        setTxPreview({
+          type: selectedToken ? 'token' : 'native',
           to: toAddress,
-          value: value,
+          amount: amount,
+          token: selectedToken,
           gasLimit: estimatedGas,
           gasPrice: gasPrice,
-          chainId: network.chainId,
-          nonce: null
-        };
-        setTxPreview(tx);
+          chainId: network.chainId
+        });
       } else {
-        // Bitcoin preview
         const feeRate = feeRates[feeOption];
         const amountSat = Math.floor(parseFloat(amount) * 1e8);
         const fee = feeRate * estimatedVSize;
@@ -400,14 +466,11 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
       }
       setStep(3);
     } else if (step === 3) {
-      // Send transaction
       handleSendTransaction();
     }
   };
 
-  const handleBack = () => {
-    setStep(step - 1);
-  };
+  const handleBack = () => setStep(step - 1);
 
   const handleSendTransaction = async () => {
     setIsProcessing(true);
@@ -422,7 +485,7 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
       console.error('Transaction failed:', error);
       toast.error('Transaction failed: ' + (error.message || 'Unknown error'));
       setTxResult(null);
-      setStep(4); // Show failure state
+      setStep(4);
     } finally {
       setIsProcessing(false);
     }
@@ -432,17 +495,34 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
     const network = NETWORKS[selectedNetwork];
     const provider = new ethers.JsonRpcProvider(network.rpcUrl);
     const walletSigner = new ethers.Wallet(evmPrivateKey, provider);
-
     const nonce = await provider.getTransactionCount(evmAddress);
-    const signedTx = await walletSigner.sendTransaction({
-      ...txPreview,
-      nonce: nonce,
-      type: 2
-    });
+
+    let tx;
+    if (txPreview.type === 'token') {
+      // ERC20 token transfer [citation:5]
+      const token = txPreview.token;
+      const tokenContract = new ethers.Contract(token.address, ERC20_ABI, walletSigner);
+      const amountInWei = ethers.parseUnits(txPreview.amount, token.decimals);
+      
+      tx = await tokenContract.transfer(txPreview.to, amountInWei, {
+        gasLimit: txPreview.gasLimit,
+        gasPrice: txPreview.gasPrice,
+        nonce: nonce
+      });
+    } else {
+      // Native transfer
+      tx = await walletSigner.sendTransaction({
+        to: txPreview.to,
+        value: ethers.parseEther(txPreview.amount),
+        gasLimit: txPreview.gasLimit,
+        gasPrice: txPreview.gasPrice,
+        nonce: nonce
+      });
+    }
 
     setTxResult({
-      hash: signedTx.hash,
-      explorerUrl: network.explorer + signedTx.hash
+      hash: tx.hash,
+      explorerUrl: network.explorer + tx.hash
     });
     setStep(4);
     toast.success('Transaction sent!');
@@ -453,7 +533,6 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
     const psbt = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin });
 
     let totalInput = 0;
-    // Add selected UTXOs as inputs
     txPreview.utxos.forEach(utxo => {
       psbt.addInput({
         hash: utxo.txid,
@@ -466,22 +545,19 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
       totalInput += utxo.value;
     });
 
-    // Add recipient output
     psbt.addOutput({
       address: txPreview.to,
       value: txPreview.amountSat
     });
 
-    // Calculate change
     const change = totalInput - txPreview.amountSat - txPreview.fee;
     if (change > 0) {
       psbt.addOutput({
-        address: btcAddress, // In production, use a fresh change address
+        address: btcAddress,
         value: change
       });
     }
 
-    // Sign all inputs
     for (let i = 0; i < txPreview.utxos.length; i++) {
       psbt.signInput(i, btcPrivateKey);
     }
@@ -489,7 +565,6 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
     psbt.finalizeAllInputs();
     const txHex = psbt.extractTransaction().toHex();
 
-    // Broadcast via Mempool.space
     const broadcastResponse = await fetch(`${network.apiBase}/tx`, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -497,8 +572,7 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
     });
 
     if (!broadcastResponse.ok) {
-      const errorText = await broadcastResponse.text();
-      throw new Error(`Broadcast failed: ${errorText}`);
+      throw new Error('Broadcast failed: ' + await broadcastResponse.text());
     }
 
     const txid = await broadcastResponse.text();
@@ -531,6 +605,37 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
                 </SelectContent>
               </Select>
             </div>
+
+            {network.type === 'evm' && (
+              <div>
+                <Label>Token (optional)</Label>
+                <Select 
+                  onValueChange={(value) => {
+                    if (value === 'native') {
+                      setSelectedToken(null);
+                    } else {
+                      const token = tokenList.find(t => t.address === value);
+                      setSelectedToken(token);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="bg-white/5 border-white/20 text-white">
+                    <SelectValue placeholder="Native currency" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1a1f2e] border-white/20">
+                    <SelectItem value="native" className="text-white hover:bg-white/10">
+                      {network.nativeSymbol} (Native)
+                    </SelectItem>
+                    {tokenList.map(token => (
+                      <SelectItem key={token.address} value={token.address} className="text-white hover:bg-white/10">
+                        {token.symbol} - {parseFloat(token.balance).toFixed(4)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div>
               <Label>Recipient Address</Label>
               <Input
@@ -540,8 +645,11 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
                 className="bg-white/5 border-white/20 text-white"
               />
             </div>
+
             <div>
-              <Label>Amount ({network.nativeSymbol})</Label>
+              <Label>
+                Amount {selectedToken ? `(${selectedToken.symbol})` : `(${network.nativeSymbol})`}
+              </Label>
               <Input
                 type="number"
                 value={amount}
@@ -550,11 +658,17 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
                 className="bg-white/5 border-white/20 text-white"
               />
             </div>
-            {network.type === 'evm' && evmBalance !== null && (
+
+            {network.type === 'evm' && (
               <div className="text-sm text-white/70">
-                Balance: {parseFloat(evmBalance).toFixed(6)} {network.nativeSymbol}
+                {selectedToken ? (
+                  <>Balance: {selectedToken.balance} {selectedToken.symbol}</>
+                ) : (
+                  evmBalance !== null && <>Balance: {parseFloat(evmBalance).toFixed(6)} {network.nativeSymbol}</>
+                )}
               </div>
             )}
+
             {network.type === 'utxo' && btcBalance !== null && (
               <div className="text-sm text-white/70">
                 Balance: {(btcBalance / 1e8).toFixed(8)} {network.nativeSymbol}
@@ -616,6 +730,12 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
                 <span className="text-white/50">Network</span>
                 <span className="text-white">{network.name}</span>
               </div>
+              {selectedToken && (
+                <div className="flex justify-between">
+                  <span className="text-white/50">Token</span>
+                  <span className="text-white">{selectedToken.symbol}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-white/50">From</span>
                 <span className="text-white font-mono text-sm">
@@ -628,7 +748,9 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-white/50">Amount</span>
-                <span className="text-white">{amount} {network.nativeSymbol}</span>
+                <span className="text-white">
+                  {amount} {selectedToken?.symbol || network.nativeSymbol}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-white/50">Fee</span>
@@ -642,7 +764,7 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
                   {network.type === 'evm'
                     ? (parseFloat(amount) + parseFloat(feeOptions.find(o => o.value === feeOption)?.cost || 0)).toFixed(6)
                     : (parseFloat(amount) + parseFloat(feeOptions.find(o => o.value === feeOption)?.cost || 0)).toFixed(8)
-                  } {network.nativeSymbol}
+                  } {selectedToken?.symbol || network.nativeSymbol}
                 </span>
               </div>
             </div>
@@ -730,7 +852,7 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
 
         {renderStep()}
 
-        {/* Navigation buttons */}
+        {/* Navigation */}
         {step < 4 && (
           <div className="flex justify-between mt-6">
             {step > 1 ? (
