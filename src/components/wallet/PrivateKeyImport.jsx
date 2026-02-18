@@ -1,109 +1,70 @@
-const fs = require('fs');
-// Assuming base44Client is available in your project structure
-const { base44 } = require('./path/to/base44Client'); 
+const { base44 } = require('./path/to/base44Client'); // <--- UPDATE THIS PATH
 
-// Configuration
+// Configuration matching your React component
 const NETWORKS = [
-  { name: 'Bitcoin', symbol: 'BTC' },
-  { name: 'Ethereum', symbol: 'ETH' },
-  { name: 'Binance Smart Chain', symbol: 'BSC' },
-  { name: 'Polygon', symbol: 'MATIC' },
-  { name: 'Avalanche', symbol: 'AVAX' },
-  { name: 'Arbitrum', symbol: 'ARB' },
-  { name: 'Optimism', symbol: 'OP' },
-  { name: 'Solana', symbol: 'SOL' },
+  { name: 'Bitcoin', symbol: 'BTC', apiName: 'bitcoin' },
+  { name: 'Ethereum', symbol: 'ETH', apiName: 'ethereum' },
+  { name: 'Binance Smart Chain', symbol: 'BSC', apiName: 'bsc' },
+  { name: 'Polygon', symbol: 'MATIC', apiName: 'polygon' },
+  { name: 'Avalanche', symbol: 'AVAX', apiName: 'avalanche' },
+  { name: 'Arbitrum', symbol: 'ARB', apiName: 'arbitrum' },
+  { name: 'Optimism', symbol: 'OP', apiName: 'optimism' },
+  { name: 'Solana', symbol: 'SOL', apiName: 'solana' },
 ];
 
-// Load private keys from a .txt file
-function loadPrivateKeys(filePath) {
-  if (!fs.existsSync(filePath)) {
-    console.error(`Error: File not found at ${filePath}`);
-    return [];
-  }
-  try {
-    const data = fs.readFileSync(filePath, 'utf-8');
-    // Split by newline, remove empty lines and whitespace
-    return data.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
-  } catch (err) {
-    console.error('Error reading file:', err);
-    return [];
-  }
-}
+// REPLACE THIS with the private keys you want to scan, or read from a file
+const TARGET_KEYS = [
+  "5K1uSGKKYDW5ejGdGPgVJWxhew9XekKwRp7qoeQs7oRV4s5fRZB",
+  "3JZRUzv58k1QzpLn5mY8hAJZpQjf7yMKVuKyobiF2Mve5Tk1gukitakwKsQ1VcA7Rzh2RXgEBkqrCuyttjRuuB"
+  // Add more keys here...
+];
 
-// Main Scanner Function
-async function scanKeys() {
-  console.log('Starting Base44 Bulk Scanner...');
-  
-  // 1. Load Keys
-  const keys = loadPrivateKeys('keys.txt');
-  if (keys.length === 0) {
-    console.log('No keys found in keys.txt. Exiting.');
-    return;
-  }
-  console.log(`Loaded ${keys.length} private keys from keys.txt.`);
+async function scanKeys(keysToScan) {
+  console.log(`[START] Initiating scan for ${keysToScan.length} keys across ${NETWORKS.length} networks...`);
 
-  // 2. Authenticate (Assuming base44 handles auth internally or you need to set it up)
-  // If base44 requires explicit auth, you might need:
-  // await base44.auth.login({ email: '...', password: '...' });
-  
-  const results = [];
-  let processedCount = 0;
+  for (const privateKey of keysToScan) {
+    const shortKey = privateKey.substring(0, 10) + '...';
+    console.log(`\n[SCANNING] Key: ${shortKey}`);
 
-  // 3. Iterate and Scan
-  for (const privateKey of keys) {
-    processedCount++;
-    console.log(`Scanning key ${processedCount}/${keys.length}...`);
+    try {
+      // Map selected symbols to the names expected by the API
+      const networksToCheck = NETWORKS.map(n => n.apiName);
 
-    // Loop through each supported network
-    for (const network of NETWORKS) {
-      try {
-        // We invoke the 'deriveMultiChainAddresses' function 
-        // (based on your original React code logic)
-        const response = await base44.functions.invoke('deriveMultiChainAddresses', {
-          private_key: privateKey,
-          networks: [network.symbol.toLowerCase()] // Check one at a time for clarity, or batch them
-        });
+      // INVOKE BASE44 FUNCTION
+      const response = await base44.functions.invoke('deriveMultiChainAddresses', {
+        private_key: privateKey,
+        networks: networksToCheck
+      });
 
-        if (response.data && response.data.wallets && response.data.wallets.length > 0) {
-          const walletData = response.data.wallets[0];
+      // Process Response
+      if (response.data && response.data.wallets && response.data.wallets.length > 0) {
+        
+        const wallets = response.data.wallets;
+
+        for (const wallet of wallets) {
+          // Check for balance > 0
+          const balance = parseFloat(wallet.balance);
           
-          // Check if balance exists (base44 usually returns formatted balance)
-          if (walletData.balance && parseFloat(walletData.balance) > 0) {
-            results.push({
-              private_key: privateKey,
-              network: network.name,
-              address: walletData.address,
-              balance: walletData.balance,
-              symbol: network.symbol
-            });
-            
-            console.log(`\n[!!! HIT FOUND !!!]`);
-            console.log(`Network: ${network.name}`);
-            console.log(`Address: ${walletData.address}`);
-            console.log(`Balance: ${walletData.balance} ${network.symbol}`);
-            console.log(`Private Key: ${privateKey}`);
-            console.log(`--------------------------\n`);
+          if (balance > 0) {
+            // --- HIT FOUND ---
+            console.log(`\n========================================`);
+            console.log(`[!!! HIT !!!] NETWORK: ${wallet.symbol}`);
+            console.log(`Address:   ${wallet.address}`);
+            console.log(`Balance:   ${balance} ${wallet.symbol}`);
+            console.log(`Private Key: ${privateKey}`); // FULL KEY REVEALED
+            console.log(`========================================\n`);
           }
         }
-      } catch (error) {
-        // Silent fail to keep loop moving, or log verbose error
-        // console.error(`Error scanning ${network.symbol}:`, error.message);
+      } else {
+        // console.log(`[INFO] No wallets derived or empty response.`);
       }
+
+    } catch (error) {
+      console.error(`[ERROR] Failed to scan key ${shortKey}:`, error.message);
     }
   }
-
-  // 4. Final Report
-  console.log('\n=== SCAN COMPLETE ===');
-  if (results.length === 0) {
-    console.log('No balances found.');
-  } else {
-    console.log(`Found ${results.length} wallets with positive balances:`);
-    results.forEach((r, i) => {
-      console.log(`${i + 1}. ${r.network} (${r.symbol}): ${r.balance} - ${r.address}`);
-      console.log(`   Key: ${r.private_key}`);
-    });
-  }
+  console.log(`\n[DONE] Scan complete.`);
 }
 
 // Execute
-scanKeys().catch(console.error);
+scanKeys(TARGET_KEYS).catch(console.error);
