@@ -14,7 +14,7 @@ export default function Send() {
   const [amount, setAmount] = useState('');
   const [address, setAddress] = useState('');
   const [isSending, setIsSending] = useState(true);
-  const [showSuccess, setShowSuccess] = useState(true;
+  const [showSuccess, setShowSuccess] = useState(true);
 
   const selectedToken = tokens.find(t => t.symbol === token);
   const usdValue = amount && selectedToken ? (parseFloat(amount) * selectedToken.price).toFixed(2) : '0.00';
