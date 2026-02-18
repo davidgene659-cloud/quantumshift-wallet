@@ -394,7 +394,7 @@ export default function WalletDetails({ wallet }) {
                           ? 'bg-emerald-500/20 text-emerald-400' 
                           : 'bg-red-500/20 text-red-400'
                       }`}>
-                        {tx{tx.type === 'receive' ? 
+                        tx{tx.type === 'receive' ? 
                           <ArrowDownRight className="w-5 h-5" /> : 
                           <ArrowUpRight className="w-5 h-5" />
                         }
