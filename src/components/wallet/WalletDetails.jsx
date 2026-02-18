@@ -23,8 +23,8 @@ import { toast } from 'sonner';
 import { ethers } from 'ethers';
 import axios from 'axios';
 
-// Helper to truncate for display when toggled off
-const truncate = (str: string, start = 6, end = 4) =>
+// Helper to truncate for display when toggled off (JSX version)
+const truncate = (str, start = 6, end = 4) =>
   `${str.slice(0, start)}...${str.slice(-end)}`;
 
 // Real token list for Base chain (add more if needed)
@@ -36,15 +36,15 @@ const BASE_TOKENS = [
   { symbol: 'VVV', name: 'Venice Token', address: '0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf', decimals: 18 },
 ];
 
-export default function WalletDetails({ wallet }: { wallet?: { mnemonic: string; blockchain: string } }) {
+export default function WalletDetails({ wallet }) {
   const [showFullAddress, setShowFullAddress] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [showPrivateKey, setShowPrivateKey] = useState(false);
-  const [tokens, setTokens] = useState < any[] > ([]);
+  const [tokens, setTokens] = useState([]);
   const [loadingTokens, setLoadingTokens] = useState(false);
-  const [ethBalance, setEthBalance] = useState < string > ('0');
-  const [address, setAddress] = useState < string > ('');
-  const [privateKey, setPrivateKey] = useState < string > ('');
+  const [ethBalance, setEthBalance] = useState('0');
+  const [address, setAddress] = useState('');
+  const [privateKey, setPrivateKey] = useState('');
 
   // Derive wallet from mnemonic
   useEffect(() => {
@@ -87,7 +87,7 @@ export default function WalletDetails({ wallet }: { wallet?: { mnemonic: string;
     if (!supportedChains.includes(wallet.blockchain)) return;
     setLoadingTokens(true);
     // Example: 1inch token balances API (requires API key)
-    const chainIdMap: Record<string, number> = {
+    const chainIdMap = {
       ethereum: 1,
       base: 8453,
       polygon: 137,
@@ -104,7 +104,7 @@ export default function WalletDetails({ wallet }: { wallet?: { mnemonic: string;
       })
       .then((res) => {
         const data = res.data;
-        const balances = Object.entries(data as Record<string, string>)
+        const balances = Object.entries(data)
           .filter(([_, bal]) => bal !== '0')
           .map(([addr, bal]) => {
             const token = BASE_TOKENS.find(t => t.address.toLowerCase() === addr.toLowerCase());
@@ -126,7 +126,7 @@ export default function WalletDetails({ wallet }: { wallet?: { mnemonic: string;
             headers: { 'X-API-Key': 'YOUR_MORALIS_API_KEY' }
           })
           .then((res) => {
-            setTokens(res.data.result.map((t: any) => ({
+            setTokens(res.data.result.map((t) => ({
               symbol: t.symbol,
               name: t.name,
               address: t.token_address,
@@ -143,9 +143,9 @@ export default function WalletDetails({ wallet }: { wallet?: { mnemonic: string;
       .finally(() => setLoadingTokens(false));
   }, [address, wallet?.blockchain]);
 
-  const copyToClipboard = (text: string, label: string) => {
+  const copyToClipboard = (text, label) => {
     navigator.clipboard.writeText(text);
-    toast.success(`${label} copied to clipboard`);
+    toast.success(`\${label} copied to clipboard`);
   };
 
   return (
@@ -185,11 +185,12 @@ export default function WalletDetails({ wallet }: { wallet?: { mnemonic: string;
             </p>
             <div className="flex gap-2">
               <Button onClick={() => copyToClipboard(address, 'Address')} variant="outline" size="sm" className="flex-1 border-white/20 text-white hover:bg-white/10" style={{ minHeight: '44px' }}>
-                <Copy className="w-4 h-4 mr-2" Copy
+                <Copy className="w-4 h-4 mr-2" />
+                Copy
               </Button>
               <Button
                 onClick={() => setShowQR(!showQR)}
-                variant="outline"
+               variant="outline"
                 size="sm"
                 className="flex-1 border-white/20 text-white hover:bg-white/10"
                 style={{ minHeight: '44px' }}
