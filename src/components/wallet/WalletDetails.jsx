@@ -3,212 +3,66 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
-  Wallet, Copy, QrCode, ExternalLink, Eye, EyeOff,
-  TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
-  Calendar, DollarSign, Coins, Loader2
+  Wallet, 
+  Copy, 
+  QrCode, 
+  ExternalLink, 
+  Eye, 
+  EyeOff,
+  TrendingUp,
+  TrendingDown,
+  ArrowUpRight,
+  ArrowDownRight,
+  Calendar,
+  DollarSign,
+  Coins,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { base44 } from '@/api/base44Client';
 
-// --- CONFIGURATION: API KEYS ---
-// Replace with your own API keys for production. 
-const API_KEYS = {
-  ethereum: process.env.NEXT_PUBLIC_ETHERSCAN_KEY || "YOUR_ETHERSCAN_KEY",
-  bsc: process.env.NEXT_PUBLIC_BSCSCAN_KEY || "YOUR_BSCSCAN_KEY",
-  polygon: process.env.NEXT_PUBLIC_POLYGONSCAN_KEY || "YOUR_POLYGONSCAN_KEY",
-  avalanche: process.env.NEXT_PUBLIC_SNOWTRACE_KEY || "YOUR_SNOWTRACE_KEY",
-  arbitrum: process.env.NEXT_PUBLIC_ARBISCAN_KEY || "YOUR_ARBISCAN_KEY",
-  optimism: process.env.NEXT_PUBLIC_OPTIMISM_KEY || "YOUR_OPTIMISM_KEY"
-};
-
-// --- UTILS ---
-const formatAddress = (addr) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-const formatCurrency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
-
-// --- API HELPERS ---
-const getRpcUrl = (blockchain) => {
-  const map = {
-    ethereum: 'https://cloudflare-eth.com',
-    bsc: 'https://bsc-dataseed.binance.org',
-    polygon: 'https://polygon-rpc.com',
-    avalanche: 'https://api.avax.network/ext/bc/C/rpc',
-    arbitrum: 'https://arb1.arbitrum.io/rpc',
-    optimism: 'https://mainnet.optimism.io'
-  };
-  return map[blockchain] || map.ethereum;
-};
-
-const getScanUrl = (blockchain) => {
-  const map = {
-    ethereum: 'https://api.etherscan.io/api',
-    bsc: 'https://api.bscscan.com/api',
-    polygon: 'https://api.polygonscan.com/api',
-    avalanche: 'https://api.snowtrace.io/api',
-    arbitrum: 'https://api.arbiscan.io/api',
-    optimism: 'https://api-optimistic.etherscan.io/api'
-  };
-  return map[blockchain];
-};
-
-// --- COMPONENT ---
 export default function WalletDetails({ wallet }) {
   const [showFullAddress, setShowFullAddress] = useState(false);
   const [showQR, setShowQR] = useState(false);
-  
-  // Real Data States
   const [tokens, setTokens] = useState([]);
-  const [transactions, setTransactions] = useState([]);
-  const [nativeBalance, setNativeBalance] = useState({ raw: 0, formatted: '0', usd: 0 });
-  
   const [loadingTokens, setLoadingTokens] = useState(false);
-  const [loadingTxs, setLoadingTxs] = useState(false);
-  const [loadingBal, setLoadingBal] = useState(false);
 
-  const address = wallet?.address;
+  const mockAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb";
+  const mockTransactions = [
+    { type: 'receive', amount: '+0.5 ETH', usd: '+$1,245.50', date: '2 hours ago', from: '0x9a7...3bc' },
+    { type: 'send', amount: '-0.15 ETH', usd: '-$373.65', date: '5 hours ago', to: '0x5f2...8de' },
+    { type: 'receive', amount: '+100 USDT', usd: '+$100.00', date: '1 day ago', from: '0x1c4...9af' },
+    { type: 'send', amount: '-0.02 BTC', usd: '-$1,120.00', date: '2 days ago', to: '0x8b3...2cd' },
+  ];
 
-  // 1. FETCH NATIVE BALANCE
-  useEffect(() => {
-    if (!address || !wallet?.blockchain) return;
-    const fetchBalance = async () => {
-      setLoadingBal(true);
-      try {
-        const rpcUrl = getRpcUrl(wallet.blockchain);
-        const response = await fetch(rpcUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: "2.0",
-            method: "eth_getBalance",
-            params: [address, "latest"],
-            id: 1
-          })
-        });
-        const data = await response.json();
-        const wei = parseInt(data.result, 16);
-        const ether = wei / 1e18;
-        
-        // Simple price fetch
-        let price = 0;
-        try {
-            const coinId = wallet.blockchain === 'ethereum' ? 'ethereum' : 
-                           wallet.blockchain === 'bsc' ? 'binancecoin' : 'matic-network';
-            const priceRes = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`);
-            const priceData = await priceRes.json();
-            price = priceData[coinId].usd;
-        } catch(e) { console.log("Price fetch failed"); }
-
-        setNativeBalance({
-          raw: wei,
-          formatted: ether.toFixed(4),
-          usd: ether * price
-        });
-      } catch (error) {
-        console.error("Balance fetch error:", error);
-      } finally {
-        setLoadingBal(false);
-      }
-    };
-    fetchBalance();
-  }, [address, wallet?.blockchain]);
-
-  // 2. FETCH TOKENS
-  useEffect(() => {
-    if (!address || !wallet?.blockchain) return;
-    if (!['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'].includes(wallet.blockchain)) return;
-
-    const fetchTokens = async () => {
-      setLoadingTokens(true);
-      try {
-        const scanUrl = getScanUrl(wallet.blockchain);
-        const apiKey = API_KEYS[wallet.blockchain];
-        
-        // Known high-volume tokens to check (Real logic requires a DB of tokens)
-        const tokenContracts = {
-          ethereum: ['0xdac17f958d2ee523a2206206994597c13d831ec7', '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'], 
-          bsc: ['0x55d398326f99059fF775485246999027B3197955', '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d'], 
-          polygon: ['0xc2132D05D31c914a87C6611C10748AEb04B58e8F', '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174']
-        };
-        
-        const targets = tokenContracts[wallet.blockchain] || [];
-        const realTokens = [];
-
-        for (const contract of targets) {
-           const balRes = await fetch(`${scanUrl}?module=account&action=tokenbalance&contractaddress=${contract}&address=${address}&tag=latest&apikey=${apiKey}`);
-           const balData = await balRes.json();
-           if (parseInt(balData.result) > 0) {
-              const metaRes = await fetch(`${scanUrl}?module=token&action=tokeninfo&contractaddress=${contract}&apikey=${apiKey}`);
-              const metaData = await metaRes.json();
-              if (metaData.status === "1" && metaData.result.length > 0) {
-                  const info = metaData.result[0];
-                  const rawBal = parseInt(balData.result);
-                  const decimals = parseInt(info.divisor) || 18;
-                  const formattedBal = (rawBal / (10 ** decimals)).toFixed(4);
-                  realTokens.push({
-                    symbol: info.symbol,
-                    name: info.tokenName,
-                    balance: formattedBal,
-                    contract: contract
-                  });
-              }
-           }
-        }
-        setTokens(realTokens);
-      } catch (error) {
-        console.error("Failed to load tokens:", error);
-      } finally {
-        setLoadingTokens(false);
-      }
-    };
-    fetchTokens();
-  }, [address, wallet?.blockchain]);
-
-  // 3. FETCH TRANSACTIONS
-  useEffect(() => {
-    if (!address || !wallet?.blockchain) return;
-    if (!['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'].includes(wallet.blockchain)) return;
-
-    const fetchTransactions = async () => {
-      setLoadingTxs(true);
-      try {
-        const scanUrl = getScanUrl(wallet.blockchain);
-        const apiKey = API_KEYS[wallet.blockchain];
-
-        const response = await fetch(`${scanUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=10&sort=desc&apikey=${apiKey}`);
-        const data = await response.json();
-
-        if (data.status === "1" && data.result) {
-          const txs = data.result.map(tx => {
-            const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
-            const valueEth = parseInt(tx.value) / 1e18;
-            const symbol = wallet.blockchain === 'ethereum' ? 'ETH' : wallet.blockchain === 'bsc' ? 'BNB' : 'MATIC';
-            
-            return {
-              hash: tx.hash,
-              type: isIncoming ? 'receive' : 'send',
-              amount: `${isIncoming ? '+' : '-'}${valueEth.toFixed(4)} ${symbol}`,
-              counterparty: isIncoming ? tx.from : tx.to,
-              date: new Date(tx.timeStamp * 1000).toLocaleDateString(),
-              timestamp: tx.timeStamp
-            };
-          });
-          setTransactions(txs);
-        }
-      } catch (error) {
-        console.error("Failed to load transactions:", error);
-      } finally {
-        setLoadingTxs(false);
-      }
-    };
-
-    fetchTransactions();
-  }, [address, wallet?.blockchain]);
-
-  // --- HANDLERS ---
   const copyAddress = () => {
-    navigator.clipboard.writeText(address);
+    navigator.clipboard.writeText(wallet?.address || mockAddress);
     toast.success('Address copied to clipboard');
   };
 
-  // --- RENDER ---
+  // Load tokens in the background
+  useEffect(() => {
+    if (wallet && ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'].includes(wallet.blockchain)) {
+      setLoadingTokens(true);
+      
+      base44.functions.invoke('getWalletTokens', {
+        address: wallet.address,
+        blockchain: wallet.blockchain
+      })
+      .then(response => {
+        if (response.data.tokens) {
+          setTokens(response.data.tokens);
+        }
+      })
+      .catch(error => {
+        console.error('Failed to load tokens:', error);
+      })
+      .finally(() => {
+        setLoadingTokens(false);
+      });
+    }
+  }, [wallet]);
+
   return (
     <div className="space-y-4">
       {/* Wallet Address Card */}
@@ -226,6 +80,7 @@ export default function WalletDetails({ wallet }) {
               <button
                 onClick={() => setShowFullAddress(!showFullAddress)}
                 className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+                style={{ minHeight: '36px', minWidth: '36px' }}
               >
                 {showFullAddress ? 
                   <EyeOff className="w-4 h-4 text-white/70" /> : 
@@ -234,14 +89,28 @@ export default function WalletDetails({ wallet }) {
               </button>
             </div>
             <p className="text-white font-mono text-sm mb-3">
-              {showFullAddress ? address : formatAddress(address)}
+              {showFullAddress 
+                ? (wallet?.address || mockAddress) 
+                : `${(wallet?.address || mockAddress).slice(0, 6)}...${(wallet?.address || mockAddress).slice(-4)}`}
             </p>
             <div className="flex gap-2">
-              <Button onClick={copyAddress} variant="outline" size="sm" className="flex-1 border-white/20 text-white hover:bg-white/10">
+              <Button
+                onClick={copyAddress}
+                variant="outline"
+                size="sm"
+                className="flex-1 border-white/20 text-white hover:bg-white/10"
+                style={{ minHeight: '44px' }}
+              >
                 <Copy className="w-4 h-4 mr-2" />
                 Copy
               </Button>
-              <Button onClick={() => setShowQR(!showQR)} variant="outline" size="sm" className="flex-1 border-white/20 text-white hover:bg-white/10">
+              <Button
+                onClick={() => setShowQR(!showQR)}
+                variant="outline"
+                size="sm"
+                className="flex-1 border-white/20 text-white hover:bg-white/10"
+                style={{ minHeight: '44px' }}
+              >
                 <QrCode className="w-4 h-4 mr-2" />
                 QR Code
               </Button>
@@ -256,11 +125,9 @@ export default function WalletDetails({ wallet }) {
                 exit={{ opacity: 0, height: 0 }}
                 className="bg-white rounded-xl p-6 flex flex-col items-center"
               >
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${address}`} 
-                  alt="QR Code" 
-                  className="w-48 h-48 rounded-xl mb-3"
-                />
+                <div className="w-48 h-48 bg-gray-200 rounded-xl flex items-center justify-center mb-3">
+                  <QrCode className="w-24 h-24 text-gray-400" />
+                </div>
                 <p className="text-gray-600 text-xs text-center">Scan to send crypto to this wallet</p>
               </motion.div>
             )}
@@ -273,40 +140,28 @@ export default function WalletDetails({ wallet }) {
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
             <DollarSign className="w-5 h-5" />
-            Portfolio Value
+            Portfolio Stats
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {loadingBal ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <p className="text-white/50 text-xs">Total Balance</p>
-                <p className="text-white font-bold text-2xl">{nativeBalance.formatted} {wallet?.blockchain === 'ethereum' ? 'ETH' : 'Tokens'}</p>
-                <p className="text-white/70 text-sm">{formatCurrency(nativeBalance.usd)}</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-black/30 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <span className="text-white/50 text-xs">24h Change</span>
               </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-black/30 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <TrendingUp className="w-4 h-4 text-emerald-400" />
-                    <span className="text-white/50 text-xs">24h Change</span>
-                  </div>
-                  <p className="text-emerald-400 font-bold text-lg">+2.4%</p>
-                </div>
-                <div className="bg-black/30 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Calendar className="w-4 h-4 text-blue-400" />
-                    <span className="text-white/50 text-xs">Tx Count</span>
-                  </div>
-                  <p className="text-blue-400 font-bold text-lg">{transactions.length}</p>
-                </div>
-              </div>
+              <p className="text-emerald-400 font-bold text-lg">+$1,847.25</p>
+              <p className="text-emerald-400 text-xs">+5.42%</p>
             </div>
-          )}
+            <div className="bg-black/30 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="w-4 h-4 text-blue-400" />
+                <span className="text-white/50 text-xs">30d Change</span>
+              </div>
+              <p className="text-blue-400 font-bold text-lg">+$8,234.50</p>
+              <p className="text-blue-400 text-xs">+28.15%</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -323,12 +178,15 @@ export default function WalletDetails({ wallet }) {
             {loadingTokens ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
-                <span className="ml-2 text-white/70">Scanning contracts...</span>
+                <span className="ml-2 text-white/70">Loading tokens...</span>
               </div>
             ) : tokens.length > 0 ? (
               <div className="space-y-2">
                 {tokens.map((token, idx) => (
-                  <div key={idx} className="bg-black/30 rounded-xl p-4 hover:bg-black/40 transition-colors">
+                  <div 
+                    key={idx}
+                    className="bg-black/30 rounded-xl p-4 hover:bg-black/40 transition-colors"
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
@@ -366,7 +224,7 @@ export default function WalletDetails({ wallet }) {
               variant="ghost" 
               size="sm" 
               className="text-purple-400 hover:text-purple-300"
-              onClick={() => window.open(`${getScanUrl(wallet.blockchain).replace('/api', '')}/address/${address}`, '_blank')}
+              style={{ minHeight: '44px' }}
             >
               View All
               <ExternalLink className="w-3 h-3 ml-1" />
@@ -374,51 +232,43 @@ export default function WalletDetails({ wallet }) {
           </div>
         </CardHeader>
         <CardContent>
-          {loadingTxs ? (
-             <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
-              <span className="ml-2 text-white/70">Loading history...</span>
-            </div>
-          ) : transactions.length > 0 ? (
-            <div className="space-y-3">
-              {transactions.map((tx, idx) => (
-                <div 
-                  key={idx}
-                  className="bg-black/30 rounded-xl p-4 hover:bg-black/40 transition-colors cursor-pointer"
-                  onClick={() => window.open(`${getScanUrl(wallet.blockchain).replace('/api', '')}/tx/\${tx.hash}`, '_blank')}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center \${
-                        tx.type === 'receive' 
-                          ? 'bg-emerald-500/20 text-emerald-400' 
-                          : 'bg-red-500/20 text-red-400'
-                      }`}>
-                        tx{tx.type === 'receive' ? 
-                          <ArrowDownRight className="w-5 h-5" /> : 
-                          <ArrowUpRight className="w-5 h-5" />
-                        }
-                      </div>
-                      <div>
-                        <p className="text-white font-medium text-sm">{tx.amount}</p>
-                        <p className="text-white/50 text-xs">
-                          {tx.type === 'receive' ? `From ${formatAddress(tx.counterparty)}` : `To ${formatAddress(tx.counterparty)}`}
-                        </p>
-                      </div>
+          <div className="space-y-3">
+            {mockTransactions.map((tx, idx) => (
+              <div 
+                key={idx}
+                className="bg-black/30 rounded-xl p-4 hover:bg-black/40 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      tx.type === 'receive' 
+                        ? 'bg-emerald-500/20 text-emerald-400' 
+                        : 'bg-red-500/20 text-red-400'
+                    }`}>
+                      {tx.type === 'receive' ? 
+                        <ArrowDownRight className="w-5 h-5" /> : 
+                        <ArrowUpRight className="w-5 h-5" />
+                      }
                     </div>
-                    <div className="text-right">
-                      <p className="text-white/50 text-xs">{tx.date}</p>
+                    <div>
+                      <p className="text-white font-medium text-sm">{tx.amount}</p>
+                      <p className="text-white/50 text-xs">
+                        {tx.type === 'receive' ? `From ${tx.from}` : `To ${tx.to}`}
+                      </p>
                     </div>
                   </div>
+                  <div className="text-right">
+                    <p className={`font-semibold text-sm ${
+                      tx.type === 'receive' ? 'text-emerald-400' : 'text-red-400'
+                    }`}>
+                      {tx.usd}
+                    </p>
+                    <p className="text-white/50 text-xs">{tx.date}</p>
+                  </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-               <Calendar className="w-12 h-12 text-white/30 mx-auto mb-2" />
-               <p className="text-white/50 text-sm">No recent transactions</p>
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>
