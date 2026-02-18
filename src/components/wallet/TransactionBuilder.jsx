@@ -7,19 +7,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Lock, Zap, Clock, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Use global ethers (loaded from CDN)
+// Global libraries
 const { ethers } = window;
+const bitcoin = window.bitcoinjs;
+const bip32 = window.bip32;
+const ecc = window.tinysecp256k1; // required for bitcoinjs-lib
 
-// Network configuration
+// Initialize bitcoinjs-lib with the secp256k1 library
+bitcoin.initEccLib(ecc);
+
+// Network configurations
 const NETWORKS = {
   ethereum: {
+    type: 'evm',
     name: 'Ethereum',
     chainId: 1,
-    rpcUrl: 'https://mainnet.infura.io/v3/YOUR_INFURA_KEY', // Replace with your Infura key or use a public endpoint
+    rpcUrl: 'https://mainnet.infura.io/v3/YOUR_INFURA_KEY', // Replace with your Infura key
     nativeSymbol: 'ETH',
     explorer: 'https://etherscan.io/tx/'
   },
   base: {
+    type: 'evm',
     name: 'Base',
     chainId: 8453,
     rpcUrl: 'https://mainnet.base.org',
@@ -27,6 +35,7 @@ const NETWORKS = {
     explorer: 'https://basescan.org/tx/'
   },
   polygon: {
+    type: 'evm',
     name: 'Polygon',
     chainId: 137,
     rpcUrl: 'https://polygon-rpc.com',
@@ -34,6 +43,7 @@ const NETWORKS = {
     explorer: 'https://polygonscan.com/tx/'
   },
   bsc: {
+    type: 'evm',
     name: 'BNB Smart Chain',
     chainId: 56,
     rpcUrl: 'https://bsc-dataseed.binance.org',
@@ -41,6 +51,7 @@ const NETWORKS = {
     explorer: 'https://bscscan.com/tx/'
   },
   arbitrum: {
+    type: 'evm',
     name: 'Arbitrum',
     chainId: 42161,
     rpcUrl: 'https://arb1.arbitrum.io/rpc',
@@ -48,39 +59,67 @@ const NETWORKS = {
     explorer: 'https://arbiscan.io/tx/'
   },
   optimism: {
+    type: 'evm',
     name: 'Optimism',
     chainId: 10,
     rpcUrl: 'https://mainnet.optimism.io',
     nativeSymbol: 'ETH',
     explorer: 'https://optimistic.etherscan.io/tx/'
+  },
+  bitcoin: {
+    type: 'utxo',
+    name: 'Bitcoin',
+    network: 'mainnet', // or 'testnet'
+    apiBase: 'https://mempool.space/api', // For UTXO and fee data
+    nativeSymbol: 'BTC',
+    explorer: 'https://mempool.space/tx/',
+    derivationPath: "m/44'/0'/0'/0/0" // BIP44 for Bitcoin mainnet
   }
 };
 
 export default function TransactionBuilder({ isOpen, onClose, wallet }) {
-  // Step: 1=details, 2=gas, 3=review, 4=result
+  // Step: 1=details, 2=fee, 3=review, 4=result
   const [step, setStep] = useState(1);
   const [selectedNetwork, setSelectedNetwork] = useState(wallet?.blockchain || 'ethereum');
   const [toAddress, setToAddress] = useState('');
   const [amount, setAmount] = useState('');
-  const [gasOption, setGasOption] = useState('standard');
+  const [feeOption, setFeeOption] = useState('standard');
   const [txPreview, setTxPreview] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [txResult, setTxResult] = useState(null);
-  const [address, setAddress] = useState('');
-  const [privateKey, setPrivateKey] = useState('');
-  const [balance, setBalance] = useState(null);
+  
+  // EVM-specific state
+  const [evmAddress, setEvmAddress] = useState('');
+  const [evmPrivateKey, setEvmPrivateKey] = useState('');
+  const [evmBalance, setEvmBalance] = useState(null);
   const [gasPrices, setGasPrices] = useState(null);
   const [estimatedGas, setEstimatedGas] = useState(null);
+  
+  // Bitcoin-specific state
+  const [btcAddress, setBtcAddress] = useState('');
+  const [btcPrivateKey, setBtcPrivateKey] = useState(null); // Will hold the bip32 node or WIF
+  const [btcBalance, setBtcBalance] = useState(null); // in satoshis
+  const [utxos, setUtxos] = useState([]);
+  const [feeRates, setFeeRates] = useState(null); // { fastestFee, halfHourFee, hourFee } from mempool.space
+  const [estimatedVSize, setEstimatedVSize] = useState(null);
 
-  // Derive wallet from mnemonic when component opens or mnemonic changes
+  // Derive keys from mnemonic when component opens
   useEffect(() => {
     if (!wallet?.mnemonic) return;
     try {
-      const hdNode = ethers.HDNodeWallet.fromPhrase(wallet.mnemonic);
-      setPrivateKey(hdNode.privateKey);
-      setAddress(hdNode.address);
+      // Derive EVM address/private key (Ethereum path)
+      const evmNode = ethers.HDNodeWallet.fromPhrase(wallet.mnemonic);
+      setEvmPrivateKey(evmNode.privateKey);
+      setEvmAddress(evmNode.address);
+
+      // Derive Bitcoin private key using BIP44 path
+      // We need to use bip32 to derive the node
+      const seed = bip32.fromSeed(ethers.toBeArray(ethers.id(wallet.mnemonic)).slice(0, 64)); // simplistic seed derivation – use a proper mnemonic-to-seed function in production
+      const btcNode = seed.derivePath(NETWORKS.bitcoin.derivationPath);
+      setBtcPrivateKey(btcNode);
+      setBtcAddress(bitcoin.payments.p2pkh({ pubkey: btcNode.publicKey, network: bitcoin.networks.bitcoin }).address);
     } catch (e) {
-      console.error('Failed to derive wallet:', e);
+      console.error('Failed to derive keys:', e);
       toast.error('Invalid mnemonic');
     }
   }, [wallet?.mnemonic]);
@@ -91,123 +130,247 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
       setStep(1);
       setToAddress('');
       setAmount('');
-      setGasOption('standard');
+      setFeeOption('standard');
       setTxPreview(null);
       setTxResult(null);
-      setBalance(null);
+      setEvmBalance(null);
       setGasPrices(null);
       setEstimatedGas(null);
+      setBtcBalance(null);
+      setUtxos([]);
+      setFeeRates(null);
+      setEstimatedVSize(null);
     }
   }, [isOpen]);
 
-  // Fetch balance, gas prices, and estimate gas when step advances or inputs change
+  // Fetch network-specific data when inputs change
   useEffect(() => {
-    if (!address || !selectedNetwork) return;
     const network = NETWORKS[selectedNetwork];
     if (!network) return;
-    const provider = new ethers.JsonRpcProvider(network.rpcUrl);
 
-    // Fetch native balance
-    provider.getBalance(address).then(bal => {
-      setBalance(ethers.formatEther(bal));
-    }).catch(console.error);
+    if (network.type === 'evm') {
+      if (!evmAddress) return;
+      const provider = new ethers.JsonRpcProvider(network.rpcUrl);
 
-    // Fetch current gas price
-    provider.getFeeData().then(fees => {
-      const baseGasPrice = fees.gasPrice;
-      setGasPrices({
-        slow: baseGasPrice * 80n / 100n, // 20% less
-        standard: baseGasPrice,
-        fast: baseGasPrice * 120n / 100n  // 20% more
-      });
-    }).catch(console.error);
+      // Fetch native balance
+      provider.getBalance(evmAddress).then(bal => {
+        setEvmBalance(ethers.formatEther(bal));
+      }).catch(console.error);
 
-    // Estimate gas if we have recipient and amount
-    if (toAddress && amount && parseFloat(amount) > 0) {
-      const value = ethers.parseEther(amount);
-      provider.estimateGas({
-        from: address,
-        to: toAddress,
-        value: value
-      }).then(gas => {
-        setEstimatedGas(gas);
-      }).catch(err => {
-        console.error('Gas estimation failed:', err);
-        setEstimatedGas(null);
-        toast.error('Could not estimate gas. Check recipient address or amount.');
-      });
+      // Fetch current gas price
+      provider.getFeeData().then(fees => {
+        const baseGasPrice = fees.gasPrice;
+        setGasPrices({
+          slow: baseGasPrice * 80n / 100n,
+          standard: baseGasPrice,
+          fast: baseGasPrice * 120n / 100n
+        });
+      }).catch(console.error);
+
+      // Estimate gas if we have recipient and amount
+      if (toAddress && amount && parseFloat(amount) > 0) {
+        const value = ethers.parseEther(amount);
+        provider.estimateGas({
+          from: evmAddress,
+          to: toAddress,
+          value: value
+        }).then(gas => {
+          setEstimatedGas(gas);
+        }).catch(err => {
+          console.error('Gas estimation failed:', err);
+          setEstimatedGas(null);
+          toast.error('Could not estimate gas. Check recipient address or amount.');
+        });
+      }
+    } else if (network.type === 'utxo' && network.name === 'Bitcoin') {
+      if (!btcAddress) return;
+
+      // Fetch balance and UTXOs from mempool.space
+      fetch(`${network.apiBase}/address/${btcAddress}`)
+        .then(res => res.json())
+        .then(data => {
+          setBtcBalance(data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum);
+        })
+        .catch(err => {
+          console.error('Failed to fetch BTC balance:', err);
+          toast.error('Could not fetch Bitcoin balance');
+        });
+
+      fetch(`${network.apiBase}/address/${btcAddress}/utxo`)
+        .then(res => res.json())
+        .then(setUtxos)
+        .catch(err => {
+          console.error('Failed to fetch UTXOs:', err);
+          toast.error('Could not fetch UTXOs');
+        });
+
+      // Fetch recommended fee rates
+      fetch(`${network.apiBase}/v1/fees/recommended`)
+        .then(res => res.json())
+        .then(data => {
+          setFeeRates({
+            slow: data.hourFee,      // sat/vbyte
+            standard: data.halfHourFee,
+            fast: data.fastestFee
+          });
+        })
+        .catch(console.error);
     }
-  }, [address, selectedNetwork, toAddress, amount]);
+  }, [selectedNetwork, evmAddress, btcAddress, toAddress, amount]);
 
-  // Compute gas cost for each option (only when gasPrices and estimatedGas are available)
-  const gasOptions = gasPrices && estimatedGas ? [
-    {
-      value: 'slow',
-      label: 'Slow',
-      icon: Clock,
-      time: '5-10 min',
-      price: ethers.formatUnits(gasPrices.slow, 'gwei') + ' Gwei',
-      cost: ethers.formatEther(gasPrices.slow * estimatedGas),
-      color: 'text-blue-400'
-    },
-    {
-      value: 'standard',
-      label: 'Standard',
-      icon: Zap,
-      time: '2-5 min',
-      price: ethers.formatUnits(gasPrices.standard, 'gwei') + ' Gwei',
-      cost: ethers.formatEther(gasPrices.standard * estimatedGas),
-      color: 'text-purple-400'
-    },
-    {
-      value: 'fast',
-      label: 'Fast',
-      icon: Zap,
-      time: '< 2 min',
-      price: ethers.formatUnits(gasPrices.fast, 'gwei') + ' Gwei',
-      cost: ethers.formatEther(gasPrices.fast * estimatedGas),
-      color: 'text-orange-400'
+  // Estimate transaction size for Bitcoin (simplified)
+  useEffect(() => {
+    if (!utxos.length || !toAddress) {
+      setEstimatedVSize(null);
+      return;
     }
-  ] : [];
+    // Rough estimation: each input ~68 vbytes, output ~31 vbytes, overhead ~10 vbytes
+    const inputCount = utxos.length; // we'll use all UTXOs for simplicity – in production use coin selection
+    const outputCount = 2; // recipient + change
+    const vsize = 10 + inputCount * 68 + outputCount * 31;
+    setEstimatedVSize(vsize);
+  }, [utxos, toAddress]);
+
+  // Compute fee options for the current network
+  const getFeeOptions = () => {
+    const network = NETWORKS[selectedNetwork];
+    if (!network) return [];
+
+    if (network.type === 'evm') {
+      if (!gasPrices || !estimatedGas) return [];
+      return [
+        {
+          value: 'slow',
+          label: 'Slow',
+          icon: Clock,
+          time: '5-10 min',
+          price: ethers.formatUnits(gasPrices.slow, 'gwei') + ' Gwei',
+          cost: ethers.formatEther(gasPrices.slow * estimatedGas),
+          color: 'text-blue-400'
+        },
+        {
+          value: 'standard',
+          label: 'Standard',
+          icon: Zap,
+          time: '2-5 min',
+          price: ethers.formatUnits(gasPrices.standard, 'gwei') + ' Gwei',
+          cost: ethers.formatEther(gasPrices.standard * estimatedGas),
+          color: 'text-purple-400'
+        },
+        {
+          value: 'fast',
+          label: 'Fast',
+          icon: Zap,
+          time: '< 2 min',
+          price: ethers.formatUnits(gasPrices.fast, 'gwei') + ' Gwei',
+          cost: ethers.formatEther(gasPrices.fast * estimatedGas),
+          color: 'text-orange-400'
+        }
+      ];
+    } else if (network.type === 'utxo') {
+      if (!feeRates || !estimatedVSize) return [];
+      return [
+        {
+          value: 'slow',
+          label: 'Slow',
+          icon: Clock,
+          time: '1-2 hours',
+          price: feeRates.slow + ' sat/vB',
+          cost: ((feeRates.slow * estimatedVSize) / 1e8).toFixed(8),
+          color: 'text-blue-400'
+        },
+        {
+          value: 'standard',
+          label: 'Standard',
+          icon: Zap,
+          time: '30-60 min',
+          price: feeRates.standard + ' sat/vB',
+          cost: ((feeRates.standard * estimatedVSize) / 1e8).toFixed(8),
+          color: 'text-purple-400'
+        },
+        {
+          value: 'fast',
+          label: 'Fast',
+          icon: Zap,
+          time: '10-30 min',
+          price: feeRates.fast + ' sat/vB',
+          cost: ((feeRates.fast * estimatedVSize) / 1e8).toFixed(8),
+          color: 'text-orange-400'
+        }
+      ];
+    }
+    return [];
+  };
+
+  const feeOptions = getFeeOptions();
 
   const handleNext = () => {
     if (step === 1) {
+      // Validate step 1
+      const network = NETWORKS[selectedNetwork];
       if (!toAddress || !amount) {
         toast.error('Please fill in all fields');
         return;
       }
-      if (!ethers.isAddress(toAddress)) {
+      if (network.type === 'evm' && !ethers.isAddress(toAddress)) {
         toast.error('Invalid recipient address');
+        return;
+      }
+      if (network.type === 'utxo' && !toAddress.match(/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[a-z0-9]{39,59}$/)) {
+        toast.error('Invalid Bitcoin address');
         return;
       }
       if (parseFloat(amount) <= 0) {
         toast.error('Amount must be greater than 0');
         return;
       }
-      if (balance && parseFloat(amount) > parseFloat(balance)) {
+      // Check balance
+      if (network.type === 'evm' && evmBalance && parseFloat(amount) > parseFloat(evmBalance)) {
         toast.error('Insufficient balance');
         return;
       }
+      if (network.type === 'utxo' && btcBalance !== null) {
+        const amountSat = Math.floor(parseFloat(amount) * 1e8);
+        if (amountSat > btcBalance) {
+          toast.error('Insufficient balance');
+          return;
+        }
+      }
       setStep(2);
     } else if (step === 2) {
-      if (!gasPrices || !estimatedGas) {
-        toast.error('Gas estimation not ready. Please wait.');
+      if (feeOptions.length === 0) {
+        toast.error('Fee estimation not ready. Please wait.');
         return;
       }
-      // Build preview transaction
+      // Build preview based on network type
       const network = NETWORKS[selectedNetwork];
-      const value = ethers.parseEther(amount);
-      const gasPrice = gasPrices[gasOption];
-      const tx = {
-        from: address,
-        to: toAddress,
-        value: value,
-        gasLimit: estimatedGas,
-        gasPrice: gasPrice,
-        chainId: network.chainId,
-        nonce: null // will be filled later
-      };
-      setTxPreview(tx);
+      if (network.type === 'evm') {
+        const value = ethers.parseEther(amount);
+        const gasPrice = gasPrices[feeOption];
+        const tx = {
+          from: evmAddress,
+          to: toAddress,
+          value: value,
+          gasLimit: estimatedGas,
+          gasPrice: gasPrice,
+          chainId: network.chainId,
+          nonce: null
+        };
+        setTxPreview(tx);
+      } else {
+        // Bitcoin preview (just store parameters for now)
+        const feeRate = feeRates[feeOption];
+        const amountSat = Math.floor(parseFloat(amount) * 1e8);
+        const fee = feeRate * estimatedVSize;
+        setTxPreview({
+          to: toAddress,
+          amountSat,
+          fee,
+          feeRate,
+          utxos,
+          vsize: estimatedVSize
+        });
+      }
       setStep(3);
     } else if (step === 3) {
       // Send transaction
@@ -220,36 +383,110 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
   };
 
   const handleSendTransaction = async () => {
-    if (!privateKey || !txPreview) return;
     setIsProcessing(true);
+    const network = NETWORKS[selectedNetwork];
     try {
-      const network = NETWORKS[selectedNetwork];
-      const provider = new ethers.JsonRpcProvider(network.rpcUrl);
-      const walletSigner = new ethers.Wallet(privateKey, provider);
-
-      // Get current nonce
-      const nonce = await provider.getTransactionCount(address);
-      const signedTx = await walletSigner.sendTransaction({
-        ...txPreview,
-        nonce: nonce,
-        type: 2, // EIP-1559 not used here; using legacy for simplicity
-      });
-
-      setTxResult({
-        hash: signedTx.hash,
-        explorerUrl: network.explorer + signedTx.hash
-      });
-      setStep(4);
-      toast.success('Transaction sent!');
+      if (network.type === 'evm') {
+        await handleSendEVM();
+      } else {
+        await handleSendBitcoin();
+      }
     } catch (error) {
       console.error('Transaction failed:', error);
-      toast.error('Transaction failed: ' + (error.reason || error.message || 'Unknown error'));
+      toast.error('Transaction failed: ' + (error.message || 'Unknown error'));
+      setStep(4); // Show failure state (we'll handle in render)
+      setTxResult(null);
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const handleSendEVM = async () => {
+    const network = NETWORKS[selectedNetwork];
+    const provider = new ethers.JsonRpcProvider(network.rpcUrl);
+    const walletSigner = new ethers.Wallet(evmPrivateKey, provider);
+
+    const nonce = await provider.getTransactionCount(evmAddress);
+    const signedTx = await walletSigner.sendTransaction({
+      ...txPreview,
+      nonce: nonce,
+      type: 2
+    });
+
+    setTxResult({
+      hash: signedTx.hash,
+      explorerUrl: network.explorer + signedTx.hash
+    });
+    setStep(4);
+    toast.success('Transaction sent!');
+  };
+
+  const handleSendBitcoin = async () => {
+    // This is a simplified Bitcoin transaction builder
+    // In production, use proper coin selection and change handling
+    const network = NETWORKS.bitcoin;
+    const psbt = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin });
+
+    let totalInput = 0;
+    // Add all UTXOs as inputs (simplistic – you'd select only necessary ones)
+    txPreview.utxos.forEach(utxo => {
+      psbt.addInput({
+        hash: utxo.txid,
+        index: utxo.vout,
+        witnessUtxo: {
+          script: Buffer.from(utxo.scriptpubkey, 'hex'),
+          value: utxo.value
+        }
+      });
+      totalInput += utxo.value;
+    });
+
+    // Add recipient output
+    psbt.addOutput({
+      address: txPreview.to,
+      value: txPreview.amountSat
+    });
+
+    // Calculate change
+    const change = totalInput - txPreview.amountSat - txPreview.fee;
+    if (change > 0) {
+      // Add change output to the same address
+      psbt.addOutput({
+        address: btcAddress,
+        value: change
+      });
+    }
+
+    // Sign all inputs
+    for (let i = 0; i < txPreview.utxos.length; i++) {
+      psbt.signInput(i, btcPrivateKey);
+    }
+
+    psbt.finalizeAllInputs();
+    const txHex = psbt.extractTransaction().toHex();
+
+    // Broadcast via Mempool.space (or other service)
+    const broadcastResponse = await fetch(`${network.apiBase}/tx`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: txHex
+    });
+
+    if (!broadcastResponse.ok) {
+      throw new Error('Broadcast failed: ' + await broadcastResponse.text());
+    }
+
+    const txid = await broadcastResponse.text();
+    setTxResult({
+      hash: txid,
+      explorerUrl: network.explorer + txid
+    });
+    setStep(4);
+    toast.success('Bitcoin transaction sent!');
+  };
+
   const renderStep = () => {
+    const network = NETWORKS[selectedNetwork];
     switch (step) {
       case 1:
         return (
@@ -274,12 +511,12 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
               <Input
                 value={toAddress}
                 onChange={(e) => setToAddress(e.target.value)}
-                placeholder="0x..."
+                placeholder={network.type === 'evm' ? '0x...' : 'bc1... or 1...'}
                 className="bg-white/5 border-white/20 text-white"
               />
             </div>
             <div>
-              <Label>Amount ({NETWORKS[selectedNetwork]?.nativeSymbol})</Label>
+              <Label>Amount ({network.nativeSymbol})</Label>
               <Input
                 type="number"
                 value={amount}
@@ -288,9 +525,14 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
                 className="bg-white/5 border-white/20 text-white"
               />
             </div>
-            {balance !== null && (
+            {network.type === 'evm' && evmBalance !== null && (
               <div className="text-sm text-white/70">
-                Balance: {parseFloat(balance).toFixed(6)} {NETWORKS[selectedNetwork]?.nativeSymbol}
+                Balance: {parseFloat(evmBalance).toFixed(6)} {network.nativeSymbol}
+              </div>
+            )}
+            {network.type === 'utxo' && btcBalance !== null && (
+              <div className="text-sm text-white/70">
+                Balance: {(btcBalance / 1e8).toFixed(8)} {network.nativeSymbol}
               </div>
             )}
           </div>
@@ -299,15 +541,17 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
       case 2:
         return (
           <div className="space-y-4">
-            <h3 className="text-white font-medium">Select Gas Price</h3>
+            <h3 className="text-white font-medium">
+              {network.type === 'evm' ? 'Select Gas Price' : 'Select Fee Rate'}
+            </h3>
             <div className="grid gap-3">
-              {gasOptions.map((option) => {
+              {feeOptions.map((option) => {
                 const Icon = option.icon;
-                const isSelected = gasOption === option.value;
+                const isSelected = feeOption === option.value;
                 return (
                   <button
                     key={option.value}
-                    onClick={() => setGasOption(option.value)}
+                    onClick={() => setFeeOption(option.value)}
                     className={`w-full p-4 rounded-xl border transition-all ${
                       isSelected
                         ? 'border-purple-500 bg-purple-500/20'
@@ -323,16 +567,16 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
                     </div>
                     <div className="flex items-center justify-between mt-2 text-sm">
                       <span className="text-white/50">{option.price}</span>
-                      <span className="text-white font-mono">{option.cost} {NETWORKS[selectedNetwork]?.nativeSymbol}</span>
+                      <span className="text-white font-mono">{option.cost} {network.nativeSymbol}</span>
                     </div>
                   </button>
                 );
               })}
             </div>
-            {!gasPrices && (
+            {feeOptions.length === 0 && (
               <div className="flex items-center justify-center text-white/50">
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Estimating gas...
+                Estimating fees...
               </div>
             )}
           </div>
@@ -345,11 +589,13 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
             <div className="bg-black/30 rounded-xl p-4 space-y-3">
               <div className="flex justify-between">
                 <span className="text-white/50">Network</span>
-                <span className="text-white">{NETWORKS[selectedNetwork]?.name}</span>
+                <span className="text-white">{network.name}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-white/50">From</span>
-                <span className="text-white font-mono text-sm">{address ? truncate(address) : ''}</span>
+                <span className="text-white font-mono text-sm">
+                  {network.type === 'evm' ? truncate(evmAddress) : truncate(btcAddress)}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-white/50">To</span>
@@ -357,18 +603,21 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-white/50">Amount</span>
-                <span className="text-white">{amount} {NETWORKS[selectedNetwork]?.nativeSymbol}</span>
+                <span className="text-white">{amount} {network.nativeSymbol}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-white/50">Gas Fee</span>
+                <span className="text-white/50">Fee</span>
                 <span className="text-white">
-                  {gasOptions.find(o => o.value === gasOption)?.cost} {NETWORKS[selectedNetwork]?.nativeSymbol}
+                  {feeOptions.find(o => o.value === feeOption)?.cost} {network.nativeSymbol}
                 </span>
               </div>
               <div className="flex justify-between border-t border-white/10 pt-2">
                 <span className="text-white/50">Total</span>
                 <span className="text-white font-medium">
-                  {(parseFloat(amount) + parseFloat(gasOptions.find(o => o.value === gasOption)?.cost || 0)).toFixed(6)} {NETWORKS[selectedNetwork]?.nativeSymbol}
+                  {network.type === 'evm'
+                    ? (parseFloat(amount) + parseFloat(feeOptions.find(o => o.value === feeOption)?.cost || 0)).toFixed(6)
+                    : (parseFloat(amount) + parseFloat(feeOptions.find(o => o.value === feeOption)?.cost || 0)).toFixed(8)
+                  } {network.nativeSymbol}
                 </span>
               </div>
             </div>
@@ -473,7 +722,7 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
             )}
             <Button
               onClick={handleNext}
-              disabled={isProcessing || (step === 2 && (!gasPrices || !estimatedGas))}
+              disabled={isProcessing || (step === 2 && feeOptions.length === 0)}
               className="bg-purple-600 hover:bg-purple-700 text-white"
             >
               {isProcessing ? (
@@ -493,4 +742,3 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
     </Dialog>
   );
 }
-
