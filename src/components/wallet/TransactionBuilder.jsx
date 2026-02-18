@@ -7,14 +7,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Lock, Zap, Clock, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Global libraries
+// Global libraries – check for correct global names
 const { ethers } = window;
-const bitcoin = window.bitcoinjs;
-const bip32 = window.bip32;
-const ecc = window.tinysecp256k1; // required for bitcoinjs-lib
+const bitcoin = window.bitcoin;               // bitcoinjs-lib exposes window.bitcoin
+const bip32 = window.bip32;                   // bip32 exposes window.bip32
+const bip39 = window.bip39;                   // bip39 exposes window.bip39
+const ecc = window.tinysecp256k1;              // tiny-secp256k1 exposes window.tinysecp256k1
 
-// Initialize bitcoinjs-lib with the secp256k1 library
-bitcoin.initEccLib(ecc);
+// Initialize bitcoinjs-lib with the secp256k1 library (required for signing)
+if (bitcoin && ecc) {
+  bitcoin.initEccLib(ecc);
+}
 
 // Network configurations
 const NETWORKS = {
@@ -69,8 +72,8 @@ const NETWORKS = {
   bitcoin: {
     type: 'utxo',
     name: 'Bitcoin',
-    network: 'mainnet', // or 'testnet'
-    apiBase: 'https://mempool.space/api', // For UTXO and fee data
+    network: bitcoin?.networks?.bitcoin || { message: 'Bitcoin network not loaded' }, // fallback
+    apiBase: 'https://mempool.space/api',
     nativeSymbol: 'BTC',
     explorer: 'https://mempool.space/tx/',
     derivationPath: "m/44'/0'/0'/0/0" // BIP44 for Bitcoin mainnet
@@ -97,30 +100,36 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
   
   // Bitcoin-specific state
   const [btcAddress, setBtcAddress] = useState('');
-  const [btcPrivateKey, setBtcPrivateKey] = useState(null); // Will hold the bip32 node or WIF
+  const [btcPrivateKey, setBtcPrivateKey] = useState(null); // Will hold the bip32 node
   const [btcBalance, setBtcBalance] = useState(null); // in satoshis
   const [utxos, setUtxos] = useState([]);
   const [feeRates, setFeeRates] = useState(null); // { fastestFee, halfHourFee, hourFee } from mempool.space
   const [estimatedVSize, setEstimatedVSize] = useState(null);
+  const [selectedUtxos, setSelectedUtxos] = useState([]); // UTXOs we will spend
 
   // Derive keys from mnemonic when component opens
   useEffect(() => {
     if (!wallet?.mnemonic) return;
     try {
-      // Derive EVM address/private key (Ethereum path)
+      // ----- EVM derivation (using ethers) -----
       const evmNode = ethers.HDNodeWallet.fromPhrase(wallet.mnemonic);
       setEvmPrivateKey(evmNode.privateKey);
       setEvmAddress(evmNode.address);
 
-      // Derive Bitcoin private key using BIP44 path
-      // We need to use bip32 to derive the node
-      const seed = bip32.fromSeed(ethers.toBeArray(ethers.id(wallet.mnemonic)).slice(0, 64)); // simplistic seed derivation – use a proper mnemonic-to-seed function in production
-      const btcNode = seed.derivePath(NETWORKS.bitcoin.derivationPath);
-      setBtcPrivateKey(btcNode);
-      setBtcAddress(bitcoin.payments.p2pkh({ pubkey: btcNode.publicKey, network: bitcoin.networks.bitcoin }).address);
+      // ----- Bitcoin derivation (using bip39 + bip32) -----
+      if (bip39 && bip32 && bitcoin) {
+        // Convert mnemonic to seed
+        const seed = bip39.mnemonicToSeedSync(wallet.mnemonic);
+        const root = bip32.fromSeed(seed, bitcoin.networks.bitcoin);
+        const btcNode = root.derivePath(NETWORKS.bitcoin.derivationPath);
+        setBtcPrivateKey(btcNode);
+        setBtcAddress(bitcoin.payments.p2pkh({ pubkey: btcNode.publicKey, network: bitcoin.networks.bitcoin }).address);
+      } else {
+        console.warn('Bitcoin libraries not loaded – Bitcoin functionality disabled');
+      }
     } catch (e) {
       console.error('Failed to derive keys:', e);
-      toast.error('Invalid mnemonic');
+      toast.error('Invalid mnemonic or missing libraries');
     }
   }, [wallet?.mnemonic]);
 
@@ -140,6 +149,7 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
       setUtxos([]);
       setFeeRates(null);
       setEstimatedVSize(null);
+      setSelectedUtxos([]);
     }
   }, [isOpen]);
 
@@ -152,12 +162,10 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
       if (!evmAddress) return;
       const provider = new ethers.JsonRpcProvider(network.rpcUrl);
 
-      // Fetch native balance
       provider.getBalance(evmAddress).then(bal => {
         setEvmBalance(ethers.formatEther(bal));
       }).catch(console.error);
 
-      // Fetch current gas price
       provider.getFeeData().then(fees => {
         const baseGasPrice = fees.gasPrice;
         setGasPrices({
@@ -167,8 +175,7 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
         });
       }).catch(console.error);
 
-      // Estimate gas if we have recipient and amount
-      if (toAddress && amount && parseFloat(amount) > 0) {
+      if (toAddress && amount && parseFloat(amount) > 0 && ethers.isAddress(toAddress)) {
         const value = ethers.parseEther(amount);
         provider.estimateGas({
           from: evmAddress,
@@ -185,11 +192,13 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
     } else if (network.type === 'utxo' && network.name === 'Bitcoin') {
       if (!btcAddress) return;
 
-      // Fetch balance and UTXOs from mempool.space
+      // Fetch balance and UTXOs
       fetch(`${network.apiBase}/address/${btcAddress}`)
         .then(res => res.json())
         .then(data => {
-          setBtcBalance(data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum);
+          const funded = data.chain_stats.funded_txo_sum;
+          const spent = data.chain_stats.spent_txo_sum;
+          setBtcBalance(funded - spent);
         })
         .catch(err => {
           console.error('Failed to fetch BTC balance:', err);
@@ -218,18 +227,36 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
     }
   }, [selectedNetwork, evmAddress, btcAddress, toAddress, amount]);
 
-  // Estimate transaction size for Bitcoin (simplified)
+  // Simple UTXO selection: select enough UTXOs to cover amount + fee (approximate)
   useEffect(() => {
-    if (!utxos.length || !toAddress) {
+    if (!utxos.length || !amount || !feeRates || !feeOption) {
+      setSelectedUtxos([]);
       setEstimatedVSize(null);
       return;
     }
-    // Rough estimation: each input ~68 vbytes, output ~31 vbytes, overhead ~10 vbytes
-    const inputCount = utxos.length; // we'll use all UTXOs for simplicity – in production use coin selection
-    const outputCount = 2; // recipient + change
-    const vsize = 10 + inputCount * 68 + outputCount * 31;
-    setEstimatedVSize(vsize);
-  }, [utxos, toAddress]);
+    const amountSat = Math.floor(parseFloat(amount) * 1e8);
+    const feeRate = feeRates[feeOption];
+    // Start with a dummy vsize to approximate fee
+    let selected = [];
+    let totalSelected = 0;
+    let vsize = 10; // overhead
+    for (const utxo of utxos) {
+      selected.push(utxo);
+      totalSelected += utxo.value;
+      vsize += 68; // approximate input size
+      // Rough fee: (vsize) * feeRate
+      const estimatedFee = vsize * feeRate;
+      if (totalSelected >= amountSat + estimatedFee) break;
+    }
+    if (totalSelected < amountSat) {
+      // Not enough funds
+      setSelectedUtxos([]);
+      setEstimatedVSize(null);
+    } else {
+      setSelectedUtxos(selected);
+      setEstimatedVSize(vsize + 31 * 2); // add two outputs (recipient + change)
+    }
+  }, [utxos, amount, feeRates, feeOption]);
 
   // Compute fee options for the current network
   const getFeeOptions = () => {
@@ -313,7 +340,7 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
         return;
       }
       if (network.type === 'evm' && !ethers.isAddress(toAddress)) {
-        toast.error('Invalid recipient address');
+        toast.error('Invalid EVM address');
         return;
       }
       if (network.type === 'utxo' && !toAddress.match(/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[a-z0-9]{39,59}$/)) {
@@ -358,7 +385,7 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
         };
         setTxPreview(tx);
       } else {
-        // Bitcoin preview (just store parameters for now)
+        // Bitcoin preview
         const feeRate = feeRates[feeOption];
         const amountSat = Math.floor(parseFloat(amount) * 1e8);
         const fee = feeRate * estimatedVSize;
@@ -367,7 +394,7 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
           amountSat,
           fee,
           feeRate,
-          utxos,
+          utxos: selectedUtxos,
           vsize: estimatedVSize
         });
       }
@@ -394,8 +421,8 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
     } catch (error) {
       console.error('Transaction failed:', error);
       toast.error('Transaction failed: ' + (error.message || 'Unknown error'));
-      setStep(4); // Show failure state (we'll handle in render)
       setTxResult(null);
+      setStep(4); // Show failure state
     } finally {
       setIsProcessing(false);
     }
@@ -422,13 +449,11 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
   };
 
   const handleSendBitcoin = async () => {
-    // This is a simplified Bitcoin transaction builder
-    // In production, use proper coin selection and change handling
     const network = NETWORKS.bitcoin;
     const psbt = new bitcoin.Psbt({ network: bitcoin.networks.bitcoin });
 
     let totalInput = 0;
-    // Add all UTXOs as inputs (simplistic – you'd select only necessary ones)
+    // Add selected UTXOs as inputs
     txPreview.utxos.forEach(utxo => {
       psbt.addInput({
         hash: utxo.txid,
@@ -450,9 +475,8 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
     // Calculate change
     const change = totalInput - txPreview.amountSat - txPreview.fee;
     if (change > 0) {
-      // Add change output to the same address
       psbt.addOutput({
-        address: btcAddress,
+        address: btcAddress, // In production, use a fresh change address
         value: change
       });
     }
@@ -465,7 +489,7 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
     psbt.finalizeAllInputs();
     const txHex = psbt.extractTransaction().toHex();
 
-    // Broadcast via Mempool.space (or other service)
+    // Broadcast via Mempool.space
     const broadcastResponse = await fetch(`${network.apiBase}/tx`, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -473,7 +497,8 @@ export default function TransactionBuilder({ isOpen, onClose, wallet }) {
     });
 
     if (!broadcastResponse.ok) {
-      throw new Error('Broadcast failed: ' + await broadcastResponse.text());
+      const errorText = await broadcastResponse.text();
+      throw new Error(`Broadcast failed: ${errorText}`);
     }
 
     const txid = await broadcastResponse.text();
