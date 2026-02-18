@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-  Wallet, 
-  Copy, 
-  QrCode, 
-  ExternalLink, 
-  Eye, 
+import {
+  Wallet,
+  Copy,
+  QrCode,
+  ExternalLink,
+  Eye,
   EyeOff,
   TrendingUp,
   TrendingDown,
@@ -16,55 +16,150 @@ import {
   Calendar,
   DollarSign,
   Coins,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { base44 } from '@/api/base44Client';
+import { ethers } from 'ethers';
+import axios from 'axios';
 
-export default function WalletDetails({ wallet }) {
+// Helper to truncate for display when toggled off
+const truncate = (str: string, start = 6, end = 4) =>
+  `${str.slice(0, start)}...${str.slice(-end)}`;
+
+// Real token list for Base chain (add more if needed)
+const BASE_TOKENS = [
+  { symbol: 'ETH', name: 'Ethereum', address: 'native', decimals: 18 },
+  { symbol: 'USDC', name: 'USD Coin', address: '0xd9aAEc86B65D86f6A7B5B1b0c42FFA531736b58', decimals: 6 },
+  { symbol: 'DAI', name: 'Dai Stablecoin', address: '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb', decimals: 18 },
+  { symbol: 'WETH', name: 'Wrapped Ether', address: '0x4200000000000000000000000000000000000006', decimals: 18 },
+  { symbol: 'VVV', name: 'Venice Token', address: '0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf', decimals: 18 },
+];
+
+export default function WalletDetails({ wallet }: { wallet?: { mnemonic: string; blockchain: string } }) {
   const [showFullAddress, setShowFullAddress] = useState(false);
   const [showQR, setShowQR] = useState(false);
-  const [tokens, setTokens] = useState([]);
+  const [showPrivateKey, setShowPrivateKey] = useState(false);
+  const [tokens, setTokens] = useState < any[] > ([]);
   const [loadingTokens, setLoadingTokens] = useState(false);
+  const [ethBalance, setEthBalance] = useState < string > ('0');
+  const [address, setAddress] = useState < string > ('');
+  const [privateKey, setPrivateKey] = useState < string > ('');
 
-  const mockAddress = "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb";
-  const mockTransactions = [
-    { type: 'receive', amount: '+0.5 ETH', usd: '+$1,245.50', date: '2 hours ago', from: '0x9a7...3bc' },
-    { type: 'send', amount: '-0.15 ETH', usd: '-$373.65', date: '5 hours ago', to: '0x5f2...8de' },
-    { type: 'receive', amount: '+100 USDT', usd: '+$100.00', date: '1 day ago', from: '0x1c4...9af' },
-    { type: 'send', amount: '-0.02 BTC', usd: '-$1,120.00', date: '2 days ago', to: '0x8b3...2cd' },
-  ];
-
-  const copyAddress = () => {
-    navigator.clipboard.writeText(wallet?.address || mockAddress);
-    toast.success('Address copied to clipboard');
-  };
-
-  // Load tokens in the background
+  // Derive wallet from mnemonic
   useEffect(() => {
-    if (wallet && ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'].includes(wallet.blockchain)) {
-      setLoadingTokens(true);
-      
-      base44.functions.invoke('getWalletTokens', {
-        address: wallet.address,
-        blockchain: wallet.blockchain
-      })
-      .then(response => {
-        if (response.data.tokens) {
-          setTokens(response.data.tokens);
-        }
-      })
-      .catch(error => {
-        console.error('Failed to load tokens:', error);
-      })
-      .finally(() => {
-        setLoadingTokens(false);
-      });
+    if (!wallet?.mnemonic) return;
+    try {
+      const hdNode = ethers.HDNodeWallet.fromPhrase(wallet.mnemonic);
+      setPrivateKey(hdNode.privateKey);
+      setAddress(hdNode.address);
+    } catch (e) {
+      console.error('Failed to derive wallet:', e);
+      toast.error('Invalid mnemonic');
     }
-  }, [wallet]);
+  }, [wallet?.mnemonic]);
+
+  // Fetch native balance
+  useEffect(() => {
+    if (!address || !wallet?.blockchain) return;
+    const rpcUrl = (() => {
+      switch (wallet.blockchain) {
+        case 'ethereum': return 'https://mainnet.infura.io/v3/YOUR_INFURA_KEY';
+        case 'base': return 'https://mainnet.base.org';
+        case 'polygon': return 'https://polygon-rpc.com';
+        case 'bsc': return 'https://bsc-dataseed.binance.org';
+        case 'arbitrum': return 'https://arb1.arbitrum.io/rpc';
+        case 'optimism': return 'https://mainnet.optimism.io';
+        default: return null;
+      }
+    })();
+    if (!rpcUrl) return;
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    provider.getBalance(address).then((bal) => {
+      setEthBalance(ethers.formatEther(bal));
+    }).catch(console.error);
+  }, [address, wallet?.blockchain]);
+
+  // Fetch token balances (ERC-20) via 1inch or Moralis
+  useEffect(() => {
+    if (!address || !wallet?.blockchain) return;
+    const supportedChains = ['ethereum', 'base', 'polygon', 'bsc', 'arbitrum', 'optimism'];
+    if (!supportedChains.includes(wallet.blockchain)) return;
+    setLoadingTokens(true);
+    // Example: 1inch token balances API (requires API key)
+    const chainIdMap: Record<string, number> = {
+      ethereum: 1,
+      base: 8453,
+      polygon: 137,
+      bsc: 56,
+      arbitrum: 42161,
+      optimism: 10,
+    };
+    const chainId = chainIdMap[wallet.blockchain];
+    const tokenAddresses = BASE_TOKENS.filter(t => t.address !== 'native').map(t => t.address).join(',');
+    axios
+      .get(`https://api.1inch.dev/swap/v6.0/${chainId}/wallets/${address}/balances`, {
+        headers: { Authorization: `Bearer YOUR_1INCH_API_KEY` },
+        params: { tokens: tokenAddresses }
+      })
+      .then((res) => {
+        const data = res.data;
+        const balances = Object.entries(data as Record<string, string>)
+          .filter(([_, bal]) => bal !== '0')
+          .map(([addr, bal]) => {
+            const token = BASE_TOKENS.find(t => t.address.toLowerCase() === addr.toLowerCase());
+            if (!token) return null;
+            const formatted = ethers.formatUnits(bal, token.decimals);
+            return { ...token, balance: formatted };
+          })
+          .filter(Boolean);
+        setTokens(balances);
+      })
+      .catch(() => {
+        // Fallback to Moralis if 1inch fails (requires API key)
+        axios
+          .post('https://deep-index.moralis.io/api/v2.2/wallets/tokens', {
+            address,
+            limit: 20,
+            chain: wallet.blockchain
+          }, {
+            headers: { 'X-API-Key': 'YOUR_MORALIS_API_KEY' }
+          })
+          .then((res) => {
+            setTokens(res.data.result.map((t: any) => ({
+              symbol: t.symbol,
+              name: t.name,
+              address: t.token_address,
+              decimals: t.decimals,
+              balance: ethers.formatUnits(t.balance, t.decimals)
+            })));
+          })
+          .catch((e) => {
+            console.error('Failed to load tokens:', e);
+            toast.error('Failed to load token balances');
+          })
+          .finally(() => setLoadingTokens(false));
+      })
+      .finally(() => setLoadingTokens(false));
+  }, [address, wallet?.blockchain]);
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied to clipboard`);
+  };
 
   return (
     <div className="space-y-4">
+      {/* Security Warning */}
+      <Card className="bg-red-900/30 border-red-500/30">
+        <CardContent className="p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5" />
+          <div className="text-xs text-red-300">
+            <strong>Security Warning:</strong> Your private key is displayed here for development only. Never expose private keys in production or share them with anyone.
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Wallet Address Card */}
       <Card className="bg-gradient-to-br from-white/10 to-white/5 border-white/20">
         <CardHeader>
@@ -76,33 +171,21 @@ export default function WalletDetails({ wallet }) {
         <CardContent className="space-y-4">
           <div className="bg-black/30 rounded-xl p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-white/50 text-xs">Main Wallet</span>
+              <span className="text-white/50 text-xs">Address</span>
               <button
                 onClick={() => setShowFullAddress(!showFullAddress)}
                 className="p-1 hover:bg-white/10 rounded-lg transition-colors"
                 style={{ minHeight: '36px', minWidth: '36px' }}
               >
-                {showFullAddress ? 
-                  <EyeOff className="w-4 h-4 text-white/70" /> : 
-                  <Eye className="w-4 h-4 text-white/70" />
-                }
+                {showFullAddress ? <EyeOff className="w-4 h-4 text-white/70" /> : <Eye className="w-4 h-4 text-white/70" />}
               </button>
             </div>
-            <p className="text-white font-mono text-sm mb-3">
-              {showFullAddress 
-                ? (wallet?.address || mockAddress) 
-                : `${(wallet?.address || mockAddress).slice(0, 6)}...${(wallet?.address || mockAddress).slice(-4)}`}
+            <p className="text-white font-mono text-sm mb-3 break-all">
+              {showFullAddress ? address : truncate(address)}
             </p>
             <div className="flex gap-2">
-              <Button
-                onClick={copyAddress}
-                variant="outline"
-                size="sm"
-                className="flex-1 border-white/20 text-white hover:bg-white/10"
-                style={{ minHeight: '44px' }}
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                Copy
+              <Button onClick={() => copyToClipboard(address, 'Address')} variant="outline" size="sm" className="flex-1 border-white/20 text-white hover:bg-white/10" style={{ minHeight: '44px' }}>
+                <Copy className="w-4 h-4 mr-2" Copy
               </Button>
               <Button
                 onClick={() => setShowQR(!showQR)}
@@ -115,6 +198,33 @@ export default function WalletDetails({ wallet }) {
                 QR Code
               </Button>
             </div>
+          </div>
+
+          {/* Private Key Section */}
+          <div className="bg-black/30 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-white/50 text-xs">Private Key</span>
+              <button
+                onClick={() => setShowPrivateKey(!showPrivateKey)}
+                className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+                style={{ minHeight: '36px', minWidth: '36px' }}
+              >
+                {showPrivateKey ? <EyeOff className="w-4 h-4 text-white/70" /> : <Eye className="w-4 h-4 text-white/70" />}
+              </button>
+            </div>
+            <p className="text-white font-mono text-sm mb-3 break-all">
+              {showPrivateKey ? privateKey : truncate(privateKey, 6, 4)}
+            </p>
+            <Button
+              onClick={() => copyToClipboard(privateKey, 'Private Key')}
+              variant="outline"
+              size="sm"
+              className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10"
+              style={{ minHeight: '44px' }}
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copy Private Key
+            </Button>
           </div>
 
           <AnimatePresence>
@@ -165,64 +275,78 @@ export default function WalletDetails({ wallet }) {
         </CardContent>
       </Card>
 
+      {/* Native Balance */}
+      <Card className="bg-gradient-to-br from-white/10 to-white/5 border-white/20">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Coins className="w-5 h-5" />
+            Native Balance ({wallet?.blockchain?.toUpperCase() || 'ETH'})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-black/30 rounded-xl p-4">
+            <p className="text-white font-semibold text-lg">{ethBalance} ETH</p>
+            <p className="text-white/50 text-xs">Current balance</p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Token Holdings */}
-      {wallet && ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'].includes(wallet.blockchain) && (
-        <Card className="bg-gradient-to-br from-white/10 to-white/5 border-white/20">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
-              <Coins className="w-5 h-5" />
-              Token Holdings
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loadingTokens ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
-                <span className="ml-2 text-white/70">Loading tokens...</span>
-              </div>
-            ) : tokens.length > 0 ? (
-              <div className="space-y-2">
-                {tokens.map((token, idx) => (
-                  <div 
-                    key={idx}
-                    className="bg-black/30 rounded-xl p-4 hover:bg-black/40 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                          <span className="text-white font-bold text-sm">{token.symbol.charAt(0)}</span>
-                        </div>
-                        <div>
-                          <p className="text-white font-medium text-sm">{token.symbol}</p>
-                          <p className="text-white/50 text-xs">{token.name}</p>
-                        </div>
+      <Card className="bg-gradient-to-br from-white/10 to-white/5 border-white/20">
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Coins className="w-5 h-5" />
+            Token Holdings
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingTokens ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+              <span className="ml-2 text-white/70">Loading tokens...</span>
+            </div>
+          ) : tokens.length > 0 ? (
+            <div className="space-y-2">
+              {tokens.map((token, idx) => (
+                <div
+                  key={idx}
+                  className="bg-black/30 rounded-xl p-4 hover:bg-black/40 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">{token.symbol.charAt(0)}</span>
                       </div>
-                      <div className="text-right">
-                        <p className="text-white font-semibold">{token.balance}</p>
-                        <p className="text-white/50 text-xs">{token.symbol}</p>
+                      <div>
+                        <p className="text-white font-medium text-sm">{token.symbol}</p>
+                        <p className="text-white/50 text-xs">{token.name}</p>
                       </div>
                     </div>
+                    <div className="text-right">
+                      <p className="text-white font-semibold">{token.balance}</p>
+                      <p className="text-white/50 text-xs">{token.symbol}</p>
+                    </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Coins className="w-12 h-12 text-white/30 mx-auto mb-2" />
-                <p className="text-white/50 text-sm">No tokens found</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Coins className="w-12 h-12 text-white/30 mx-auto mb-2" />
+              <p className="text-white/50 text-sm">No tokens found</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      {/* Recent Transactions */}
+      {/* Recent Transactions (placeholder) */}
       <Card className="bg-gradient-to-br from-white/10 to-white/5 border-white/20">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-white">Recent Activity</CardTitle>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               className="text-purple-400 hover:text-purple-300"
               style={{ minHeight: '44px' }}
             >
@@ -232,42 +356,8 @@ export default function WalletDetails({ wallet }) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {mockTransactions.map((tx, idx) => (
-              <div 
-                key={idx}
-                className="bg-black/30 rounded-xl p-4 hover:bg-black/40 transition-colors cursor-pointer"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      tx.type === 'receive' 
-                        ? 'bg-emerald-500/20 text-emerald-400' 
-                        : 'bg-red-500/20 text-red-400'
-                    }`}>
-                      {tx.type === 'receive' ? 
-                        <ArrowDownRight className="w-5 h-5" /> : 
-                        <ArrowUpRight className="w-5 h-5" />
-                      }
-                    </div>
-                    <div>
-                      <p className="text-white font-medium text-sm">{tx.amount}</p>
-                      <p className="text-white/50 text-xs">
-                        {tx.type === 'receive' ? `From ${tx.from}` : `To ${tx.to}`}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`font-semibold text-sm ${
-                      tx.type === 'receive' ? 'text-emerald-400' : 'text-red-400'
-                    }`}>
-                      {tx.usd}
-                    </p>
-                    <p className="text-white/50 text-xs">{tx.date}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="text-center py-8">
+            <p className="text-white/50 text-sm">Transaction history not implemented yet.</p>
           </div>
         </CardContent>
       </Card>
