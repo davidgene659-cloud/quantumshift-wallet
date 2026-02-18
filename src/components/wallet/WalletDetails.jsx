@@ -1,5 +1,10 @@
-!npm install ethers axios
-!npm run dev
+// Remove these lines:
+// import { ethers } from 'ethers';
+// import axios from 'axios';
+
+// The libraries are now available globally:
+const { ethers } = window;
+const axios = window.axios;
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
