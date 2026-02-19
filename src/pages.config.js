@@ -48,6 +48,7 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
+import SecureVaultPage from './pages/SecureVaultPage'; // ← ADD
 import AIHub from './pages/AIHub';
 import AdvancedAnalytics from './pages/AdvancedAnalytics';
 import Analytics from './pages/Analytics';
@@ -94,6 +95,7 @@ export const PAGES = {
     "Swap": Swap,
     "TradingBots": TradingBots,
     "VirtualCard": VirtualCard,
+    "SecureVaultPage": SecureVaultPage, // ← ADD
 }
 
 export const pagesConfig = {
