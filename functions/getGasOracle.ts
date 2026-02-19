@@ -1,173 +1,127 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+// Hardcoded fallback fees used when external APIs fail or timeout
+const FALLBACKS = {
+  bitcoin:   { slow: 25, standard: 25, fast: 25 },       // sat/vB - fixed as requested
+  ethereum:  { slow: 20, standard: 35, fast: 60 },        // gwei
+  polygon:   { slow: 80, standard: 120, fast: 200 },      // gwei
+  bsc:       { slow: 3,  standard: 5,  fast: 8  },        // gwei
+  avalanche: { slow: 25, standard: 35, fast: 50 },        // gwei
+  arbitrum:  { slow: 0.1,standard: 0.2,fast: 0.3 },      // gwei
+  optimism:  { slow: 0.1,standard: 0.2,fast: 0.3 },      // gwei
+  solana:    { slow: 0.000005, standard: 0.000005, fast: 0.000005 }, // SOL flat fee
+};
+
+async function fetchWithTimeout(url, timeoutMs = 4000) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function buildEvmResponse(blockchain, slow, standard, fast, nativePrice) {
+  const gasLimit = 21000;
+  const toEth = (gwei) => gwei * gasLimit * 1e-9;
+  return {
+    blockchain,
+    timestamp: new Date().toISOString(),
+    instant: fast,
+    prices: {
+      slow:     { gwei: Math.round(slow),     estimatedTime: '10-15 min', estimatedCost: (toEth(slow)     * nativePrice).toFixed(4) },
+      standard: { gwei: Math.round(standard), estimatedTime: '3-5 min',   estimatedCost: (toEth(standard) * nativePrice).toFixed(4) },
+      fast:     { gwei: Math.round(fast),     estimatedTime: '30-60 sec', estimatedCost: (toEth(fast)     * nativePrice).toFixed(4) },
+    },
+    congestionLevel: standard > 80 ? 'high' : standard > 40 ? 'medium' : 'low',
+    recommendation: standard > 80 ? 'High congestion - consider waiting' : 'Good time to transact',
+  };
+}
+
 Deno.serve(async (req) => {
-    try {
-        const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
+  try {
+    const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-        if (!user) {
-            return Response.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+    const { blockchain } = await req.json();
 
-        const { blockchain } = await req.json();
-
-        // Bitcoin fee hardcoded at 25 sat/vB
-        if (blockchain === 'bitcoin') {
-            const satPerVbyte = 25;
-            const avgTxSize = 250;
-            const btcPrice = 43250;
-            const feeBtc = (satPerVbyte * avgTxSize) / 1e8;
-            return Response.json({
-                blockchain: 'bitcoin',
-                timestamp: new Date().toISOString(),
-                instant: satPerVbyte,
-                prices: {
-                    slow:     { sat_per_vbyte: satPerVbyte, estimatedTime: '~60 min', estimatedCost: (feeBtc * btcPrice).toFixed(4) },
-                    standard: { sat_per_vbyte: satPerVbyte, estimatedTime: '~30 min', estimatedCost: (feeBtc * btcPrice).toFixed(4) },
-                    fast:     { sat_per_vbyte: satPerVbyte, estimatedTime: '~10 min', estimatedCost: (feeBtc * btcPrice).toFixed(4) },
-                },
-                congestionLevel: 'low',
-                recommendation: 'Fixed fee rate of 25 sat/vB',
-            });
-        }
-
-        let gasData = {};
-
-        if (blockchain === 'ethereum') {
-            // Aggregate multiple gas oracles for accuracy
-            const [etherscan, ethGasStation, blocknative] = await Promise.allSettled([
-                fetch('https://api.etherscan.io/api?module=gastracker&action=gasoracle').then(r => r.json()),
-                fetch('https://ethgasstation.info/api/ethgasAPI.json').then(r => r.json()),
-                fetch('https://api.blocknative.com/gasprices/blockprices').then(r => r.json())
-            ]);
-
-            // Average the results for more accurate prediction
-            let slow = 0, standard = 0, fast = 0, count = 0;
-
-            if (etherscan.status === 'fulfilled' && etherscan.value.result) {
-                const data = etherscan.value.result;
-                slow += parseFloat(data.SafeGasPrice);
-                standard += parseFloat(data.ProposeGasPrice);
-                fast += parseFloat(data.FastGasPrice);
-                count++;
-            }
-
-            if (ethGasStation.status === 'fulfilled') {
-                const data = ethGasStation.value;
-                slow += data.safeLow / 10;
-                standard += data.average / 10;
-                fast += data.fast / 10;
-                count++;
-            }
-
-            if (blocknative.status === 'fulfilled' && blocknative.value.blockPrices?.[0]) {
-                const data = blocknative.value.blockPrices[0].estimatedPrices;
-                const slowPrice = data.find(p => p.confidence === 70);
-                const standardPrice = data.find(p => p.confidence === 80);
-                const fastPrice = data.find(p => p.confidence === 95);
-                
-                if (slowPrice) { slow += slowPrice.maxFeePerGas; count++; }
-                if (standardPrice) standard += standardPrice.maxFeePerGas;
-                if (fastPrice) fast += fastPrice.maxFeePerGas;
-            }
-
-            gasData = {
-                blockchain: 'ethereum',
-                timestamp: new Date().toISOString(),
-                prices: {
-                    slow: { 
-                        gwei: Math.round(slow / count), 
-                        estimatedTime: '10-15 min',
-                        estimatedCost: ((slow / count) * 21000 * 0.000000001 * 2800).toFixed(2)
-                    },
-                    standard: { 
-                        gwei: Math.round(standard / count), 
-                        estimatedTime: '3-5 min',
-                        estimatedCost: ((standard / count) * 21000 * 0.000000001 * 2800).toFixed(2)
-                    },
-                    fast: { 
-                        gwei: Math.round(fast / count), 
-                        estimatedTime: '30-60 sec',
-                        estimatedCost: ((fast / count) * 21000 * 0.000000001 * 2800).toFixed(2)
-                    }
-                },
-                congestionLevel: slow / count > 100 ? 'high' : slow / count > 50 ? 'medium' : 'low',
-                recommendation: slow / count > 100 ? 'Consider waiting for lower fees' : 'Good time to transact'
-            };
-        } else if (blockchain === 'polygon') {
-            const response = await fetch('https://gasstation.polygon.technology/v2');
-            const data = await response.json();
-
-            gasData = {
-                blockchain: 'polygon',
-                timestamp: new Date().toISOString(),
-                prices: {
-                    slow: { 
-                        gwei: Math.round(data.safeLow.maxFee), 
-                        estimatedTime: '5-10 min',
-                        estimatedCost: (data.safeLow.maxFee * 21000 * 0.000000001 * 0.75).toFixed(4)
-                    },
-                    standard: { 
-                        gwei: Math.round(data.standard.maxFee), 
-                        estimatedTime: '2-3 min',
-                        estimatedCost: (data.standard.maxFee * 21000 * 0.000000001 * 0.75).toFixed(4)
-                    },
-                    fast: { 
-                        gwei: Math.round(data.fast.maxFee), 
-                        estimatedTime: '30 sec',
-                        estimatedCost: (data.fast.maxFee * 21000 * 0.000000001 * 0.75).toFixed(4)
-                    }
-                },
-                congestionLevel: data.standard.maxFee > 200 ? 'high' : data.standard.maxFee > 100 ? 'medium' : 'low',
-                recommendation: 'Polygon typically has low fees'
-            };
-        } else if (blockchain === 'bsc') {
-            // BSC gas price estimation
-            const response = await fetch('https://api.bscscan.com/api?module=gastracker&action=gasoracle&apikey=YourApiKeyToken');
-            const data = await response.json();
-
-            if (data.status === '1') {
-                gasData = {
-                    blockchain: 'bsc',
-                    timestamp: new Date().toISOString(),
-                    prices: {
-                        slow: { 
-                            gwei: Math.round(data.result.SafeGasPrice), 
-                            estimatedTime: '5-8 min',
-                            estimatedCost: (data.result.SafeGasPrice * 21000 * 0.000000001 * 550).toFixed(4)
-                        },
-                        standard: { 
-                            gwei: Math.round(data.result.ProposeGasPrice), 
-                            estimatedTime: '2-3 min',
-                            estimatedCost: (data.result.ProposeGasPrice * 21000 * 0.000000001 * 550).toFixed(4)
-                        },
-                        fast: { 
-                            gwei: Math.round(data.result.FastGasPrice), 
-                            estimatedTime: '30-60 sec',
-                            estimatedCost: (data.result.FastGasPrice * 21000 * 0.000000001 * 550).toFixed(4)
-                        }
-                    },
-                    congestionLevel: data.result.ProposeGasPrice > 10 ? 'medium' : 'low',
-                    recommendation: 'BSC fees are generally low'
-                };
-            }
-        }
-
-        // Add spike alert if fees are unusually high
-        const isSpike = gasData.congestionLevel === 'high' || 
-                       (gasData.prices?.standard?.gwei > 80 && blockchain === 'ethereum');
-
-        if (isSpike) {
-            gasData.alert = {
-                type: 'fee_spike',
-                severity: 'high',
-                message: `${blockchain} network experiencing high congestion. Consider delaying non-urgent transactions.`,
-                suggestion: 'Wait 2-4 hours for potential fee reduction'
-            };
-        }
-
-        return Response.json(gasData);
-    } catch (error) {
-        return Response.json({ error: error.message }, { status: 500 });
+    // ── BITCOIN ── fixed at 25 sat/vB
+    if (blockchain === 'bitcoin') {
+      const satPerVbyte = 25;
+      const feeBtc = (satPerVbyte * 250) / 1e8;
+      const btcPrice = 43250;
+      return Response.json({
+        blockchain: 'bitcoin',
+        timestamp: new Date().toISOString(),
+        instant: satPerVbyte,
+        prices: {
+          slow:     { sat_per_vbyte: satPerVbyte, estimatedTime: '~60 min', estimatedCost: (feeBtc * btcPrice).toFixed(4) },
+          standard: { sat_per_vbyte: satPerVbyte, estimatedTime: '~30 min', estimatedCost: (feeBtc * btcPrice).toFixed(4) },
+          fast:     { sat_per_vbyte: satPerVbyte, estimatedTime: '~10 min', estimatedCost: (feeBtc * btcPrice).toFixed(4) },
+        },
+        congestionLevel: 'low',
+        recommendation: 'Fixed fee rate of 25 sat/vB',
+      });
     }
+
+    // ── SOLANA ── flat fee, no oracle needed
+    if (blockchain === 'solana') {
+      return Response.json({
+        blockchain: 'solana',
+        timestamp: new Date().toISOString(),
+        instant: 0.000005,
+        prices: {
+          slow:     { sol: 0.000005, estimatedTime: '~30 sec', estimatedCost: '0.0007' },
+          standard: { sol: 0.000005, estimatedTime: '~15 sec', estimatedCost: '0.0007' },
+          fast:     { sol: 0.000005, estimatedTime: '~5 sec',  estimatedCost: '0.0007' },
+        },
+        congestionLevel: 'low',
+        recommendation: 'Solana fees are always minimal',
+      });
+    }
+
+    // ── ETHEREUM ── try oracle, fallback immediately on timeout
+    if (blockchain === 'ethereum') {
+      const data = await fetchWithTimeout('https://api.etherscan.io/api?module=gastracker&action=gasoracle');
+      const fb = FALLBACKS.ethereum;
+      const slow     = data?.result ? parseFloat(data.result.SafeGasPrice)    : fb.slow;
+      const standard = data?.result ? parseFloat(data.result.ProposeGasPrice) : fb.standard;
+      const fast     = data?.result ? parseFloat(data.result.FastGasPrice)    : fb.fast;
+      return Response.json(buildEvmResponse('ethereum', slow, standard, fast, 2280));
+    }
+
+    // ── POLYGON ──
+    if (blockchain === 'polygon') {
+      const data = await fetchWithTimeout('https://gasstation.polygon.technology/v2');
+      const fb = FALLBACKS.polygon;
+      const slow     = data?.safeLow?.maxFee     ?? fb.slow;
+      const standard = data?.standard?.maxFee    ?? fb.standard;
+      const fast     = data?.fast?.maxFee        ?? fb.fast;
+      return Response.json(buildEvmResponse('polygon', slow, standard, fast, 0.8));
+    }
+
+    // ── BSC ──
+    if (blockchain === 'bsc') {
+      const data = await fetchWithTimeout('https://api.bscscan.com/api?module=gastracker&action=gasoracle');
+      const fb = FALLBACKS.bsc;
+      const slow     = data?.result ? parseFloat(data.result.SafeGasPrice)    : fb.slow;
+      const standard = data?.result ? parseFloat(data.result.ProposeGasPrice) : fb.standard;
+      const fast     = data?.result ? parseFloat(data.result.FastGasPrice)    : fb.fast;
+      return Response.json(buildEvmResponse('bsc', slow, standard, fast, 310));
+    }
+
+    // ── AVALANCHE / ARBITRUM / OPTIMISM ── no reliable free oracle, use fallbacks
+    if (['avalanche', 'arbitrum', 'optimism'].includes(blockchain)) {
+      const fb = FALLBACKS[blockchain];
+      const prices = { avalanche: 35, arbitrum: 2280, optimism: 2280 };
+      return Response.json(buildEvmResponse(blockchain, fb.slow, fb.standard, fb.fast, prices[blockchain]));
+    }
+
+    return Response.json({ error: 'Unsupported blockchain' }, { status: 400 });
+
+  } catch (error) {
+    return Response.json({ error: error.message }, { status: 500 });
+  }
 });
