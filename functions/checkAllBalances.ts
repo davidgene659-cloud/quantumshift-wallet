@@ -43,16 +43,50 @@ Deno.serve(async (req) => {
                 let price = 0;
                 let symbol = '';
 
-                if (wallet.blockchain === 'ethereum') {
-                    const etherscanResponse = await fetch(
-                        `https://api.etherscan.io/api?module=account&action=balance&address=${wallet.address}&tag=latest&apikey=${Deno.env.get('ETHERSCAN_API_KEY')}`
+                // EVM chain config (native token balance)
+                const evmChains = {
+                    ethereum:  { api: 'https://api.etherscan.io/api',                  symbol: 'ETH',  price: 2280  },
+                    polygon:   { api: 'https://api.polygonscan.com/api',               symbol: 'MATIC', price: 0.8  },
+                    bsc:       { api: 'https://api.bscscan.com/api',                   symbol: 'BNB',  price: 310   },
+                    avalanche: { api: 'https://api.snowtrace.io/api',                   symbol: 'AVAX', price: 35   },
+                    arbitrum:  { api: 'https://api.arbiscan.io/api',                    symbol: 'ETH',  price: 2280 },
+                    optimism:  { api: 'https://api-optimistic.etherscan.io/api',        symbol: 'ETH',  price: 2280 },
+                };
+
+                if (wallet.blockchain in evmChains) {
+                    const chain = evmChains[wallet.blockchain];
+                    const response = await fetch(
+                        `${chain.api}?module=account&action=balance&address=${wallet.address}&tag=latest`
                     );
-                    const data = await etherscanResponse.json();
-                    
+                    const data = await response.json();
                     if (data.status === '1') {
                         balance = Number(BigInt(data.result)) / 1e18;
-                        price = 2280;
-                        symbol = 'ETH';
+                        price = chain.price;
+                        symbol = chain.symbol;
+                    }
+                } else if (wallet.blockchain === 'solana') {
+                    const response = await fetch('https://api.mainnet-beta.solana.com', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            jsonrpc: '2.0', id: 1,
+                            method: 'getBalance',
+                            params: [wallet.address]
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.result?.value !== undefined) {
+                        balance = data.result.value / 1e9;
+                        price = 130;
+                        symbol = 'SOL';
+                    }
+                } else if (wallet.blockchain === 'tron') {
+                    const response = await fetch(`https://apilist.tronscan.org/api/account?address=${wallet.address}`);
+                    const data = await response.json();
+                    if (data.balance !== undefined) {
+                        balance = data.balance / 1e6;
+                        price = 0.12;
+                        symbol = 'TRX';
                     }
                 } else if (wallet.blockchain === 'bitcoin') {
                     // Rotate through Bitcoin APIs
