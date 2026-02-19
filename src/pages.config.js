@@ -74,6 +74,7 @@ import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
+    "SecureVaultPage": SecureVaultPage,
     "AIHub": AIHub,
     "AdvancedAnalytics": AdvancedAnalytics,
     "Analytics": Analytics,
@@ -95,7 +96,7 @@ export const PAGES = {
     "Swap": Swap,
     "TradingBots": TradingBots,
     "VirtualCard": VirtualCard,
-    "SecureVaultPage": SecureVaultPage, // ← ADD
+     
 }
 
 export const pagesConfig = {
