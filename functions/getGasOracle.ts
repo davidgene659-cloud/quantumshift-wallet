@@ -11,6 +11,26 @@ Deno.serve(async (req) => {
 
         const { blockchain } = await req.json();
 
+        // Bitcoin fee hardcoded at 25 sat/vB
+        if (blockchain === 'bitcoin') {
+            const satPerVbyte = 25;
+            const avgTxSize = 250;
+            const btcPrice = 43250;
+            const feeBtc = (satPerVbyte * avgTxSize) / 1e8;
+            return Response.json({
+                blockchain: 'bitcoin',
+                timestamp: new Date().toISOString(),
+                instant: satPerVbyte,
+                prices: {
+                    slow:     { sat_per_vbyte: satPerVbyte, estimatedTime: '~60 min', estimatedCost: (feeBtc * btcPrice).toFixed(4) },
+                    standard: { sat_per_vbyte: satPerVbyte, estimatedTime: '~30 min', estimatedCost: (feeBtc * btcPrice).toFixed(4) },
+                    fast:     { sat_per_vbyte: satPerVbyte, estimatedTime: '~10 min', estimatedCost: (feeBtc * btcPrice).toFixed(4) },
+                },
+                congestionLevel: 'low',
+                recommendation: 'Fixed fee rate of 25 sat/vB',
+            });
+        }
+
         let gasData = {};
 
         if (blockchain === 'ethereum') {
