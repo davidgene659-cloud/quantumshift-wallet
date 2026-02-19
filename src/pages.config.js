@@ -8,7 +8,7 @@
  * This controls which page is the landing page (shown when users visit the app).
  * 
  * Example file structure:
- * 
+ *   import SecureVaultPage from './pages/SecureVaultPage'; 
  *   import HomePage from './pages/HomePage';
  *   import Dashboard from './pages/Dashboard';
  *   import Settings from './pages/Settings';
