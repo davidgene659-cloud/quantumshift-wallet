@@ -80,8 +80,8 @@ export default function Portfolio() {
       });
 
       const tokenChainWallets = wallets.filter(w => 
-        ['ethereum', 'polygon', 'bsc', 'solana'].includes(w.blockchain)
-      ).slice(0, 3);
+        ['ethereum', 'polygon', 'bsc', 'solana', 'avalanche', 'arbitrum', 'optimism'].includes(w.blockchain)
+      );
 
       const allTokens = [];
       for (const wallet of tokenChainWallets) {
