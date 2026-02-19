@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
+  Shield,
   Wallet, 
   ArrowLeftRight, 
   Bot, 
@@ -31,6 +32,7 @@ const navItems = [
   { icon: Spade, label: 'Poker', page: 'Poker' },
   { icon: Landmark, label: 'Banking', page: 'Banking' },
   { icon: TrendingUp, label: 'Analytics', page: 'Analytics' },
+  { icon: Shield, label: 'Vault', page: 'SecureVaultPage' },
 ];
 
 const secondaryNavItems = [
