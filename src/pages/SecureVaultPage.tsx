@@ -432,82 +432,73 @@ export default function SecureVaultPage() {
 
   // ── SEND TRANSACTION ──────────────────────────────────────────────────
   async function handleSend() {
-    if (!isUnlocked) return setSendError("Unlock your vault first.");
-    if (!sendTo.trim() || !sendAmount.trim()) return setSendError("Enter recipient and amount.");
-    const amount  = parseFloat(sendAmount);
-    const balance = liveBalance?.total ?? 0;
-    const fee     = computeFee();
-    if (amount + fee > balance) return setSendError(`Insufficient funds. Balance: ${balance.toFixed(8)} ${CHAIN_NATIVE[chain]}, Fee: ${fee.toFixed(8)}`);
-    setSending(true); setSendError("");
-    try {
-      // NOTE: Actual transaction signing requires chain-specific libraries
-      // (bitcoinjs-lib, ethers.js, @solana/web3.js) loaded via CDN or bundler.
-      // Below is the complete signing flow — wire in your bundler to activate.
+  if (!isUnlocked) return setSendError("Unlock your vault first.");
+  if (!sendTo.trim() || !sendAmount.trim()) return setSendError("Enter recipient and amount.");
+  const amount  = parseFloat(sendAmount);
+  const balance = liveBalance?.total ?? 0;
+  const fee     = computeFee();
+  if (amount + fee > balance) return setSendError(`Insufficient funds. Balance: ${balance.toFixed(8)} ${CHAIN_NATIVE[chain]}, Fee: ${fee.toFixed(8)}`);
+  setSending(true); setSendError("");
+  try {
+    if (chain === "BTC") {
+      const satTarget = Math.floor(amount * 1e8);
+      const satFee    = Math.floor(fee * 1e8);
+      const { selected, change } = btcSelectUTXOs(utxos, satTarget, satFee);
+      const keyPair = bitcoin.ECPair.fromWIF(unlocked[activeId!]);
+      const psbt    = new bitcoin.Psbt();
+      selected.forEach((u: any) => psbt.addInput({ hash: u.txid, index: u.vout }));
+      psbt.addOutput({ address: sendTo, value: satTarget });
+      if (change > 546) psbt.addOutput({ address: activeWallet.address, value: change });
+      psbt.signAllInputs(keyPair);
+      psbt.finalizeAllInputs();
+      const rawHex = psbt.extractTransaction().toHex();
+      const broadcastR = await fetch(`${RPC.BTC}/tx`, { method: "POST", body: rawHex });
+      const txid = await broadcastR.text();
+      setSendTxid(txid);
+      showToast("✅ BTC transaction broadcast");
+    }
 
-      if (chain === "BTC") {
-        const satTarget = Math.floor(amount * 1e8);
-        const satFee    = Math.floor(fee * 1e8);
-        const { selected, change } = btcSelectUTXOs(utxos, satTarget, satFee);
-         Build & sign with bitcoinjs-lib:
-         const bitcoin = require('bitcoinjs-lib');
-         const keyPair = bitcoin.ECPair.fromWIF(unlocked[activeId]);
-         const psbt = new bitcoin.Psbt();
-         selected.forEach(u => psbt.addInput({ hash: u.txid, index: u.vout }));
-         psbt.addOutput({ address: sendTo, value: satTarget });
-         if (change > 546) psbt.addOutput({ address: activeWallet.address, value: change });
-         psbt.signAllInputs(keyPair); psbt.finalizeAllInputs();
-         const rawHex = psbt.extractTransaction().toHex();
-         const broadcastR = await fetch(`${RPC.BTC}/tx`, { method: 'POST', body: rawHex });
-         const txid = await broadcastR.text();
-        setSendTxid(`[BTC_SIGN_READY] ${selected.length} UTXOs selected, fee: ${satFee} sats, change: ${change} sats`);
-        showToast("✅ BTC transaction built — add bitcoinjs-lib to broadcast");
-      }
+    if (chain === "ETH") {
+      const [nonce, chainId, gasLimit] = await Promise.all([
+        ethFetchNonce(activeWallet.address),
+        ethFetchChainId(),
+        ethEstimateGasLimit(activeWallet.address, sendTo, "0x" + Math.floor(amount * 1e18).toString(16)),
+      ]);
+      const gas      = fees[sendTier];
+      const provider = new ethers.JsonRpcProvider(RPC.ETH);
+      const wallet   = new ethers.Wallet(unlocked[activeId!], provider);
+      const tx       = await wallet.sendTransaction({
+        to:                  sendTo,
+        value:               ethers.parseEther(sendAmount),
+        maxFeePerGas:        ethers.parseUnits(gas.maxFee.toFixed(9), "gwei"),
+        maxPriorityFeePerGas:ethers.parseUnits(gas.priority.toFixed(9), "gwei"),
+        gasLimit,
+        chainId,
+        nonce,
+      });
+      setSendTxid(tx.hash);
+      showToast("✅ ETH transaction broadcast");
+    }
 
-      if (chain === "ETH") {
-        const [nonce, chainId, gasLimit] = await Promise.all([
-          ethFetchNonce(activeWallet.address),
-          ethFetchChainId(),
-          ethEstimateGasLimit(activeWallet.address, sendTo, "0x" + Math.floor(amount * 1e18).toString(16)),
-        ]);
-        const gas = fees[sendTier];
-         Sign with ethers.js:
-         const { ethers } = require('ethers');
-         const wallet = new ethers.Wallet(unlocked[activeId]);
-         const provider = new ethers.JsonRpcProvider(RPC.ETH);
-         const tx = await wallet.connect(provider).sendTransaction({
-           to: sendTo,
-           value: ethers.parseEther(sendAmount),
-           maxFeePerGas: ethers.parseUnits(gas.maxFee.toFixed(9), 'gwei'),
-           maxPriorityFeePerGas: ethers.parseUnits(gas.priority.toFixed(9), 'gwei'),
-           gasLimit,
-           chainId,
-           nonce,
-         });
-         setSendTxid(tx.hash);
-        setSendTxid(`[ETH_SIGN_READY] nonce:${nonce} chainId:${chainId} gasLimit:${gasLimit} maxFee:${gas.maxFee.toFixed(2)}gwei`);
-        showToast("✅ ETH transaction built — add ethers.js to broadcast");
-      }
+    if (chain === "SOL") {
+      const connection  = new Connection(RPC.SOL, "confirmed");
+      const fromKeypair = Keypair.fromSecretKey(bs58.decode(unlocked[activeId!]));
+      const tx          = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: fromKeypair.publicKey,
+          toPubkey:   new PublicKey(sendTo),
+          lamports:   Math.floor(amount * 1e9),
+        })
+      );
+      const txid = await sendAndConfirmTransaction(connection, tx, [fromKeypair]);
+      setSendTxid(txid);
+      showToast("✅ SOL transaction broadcast");
+    }
+  } catch (e: any) { setSendError(e.message); }
+  setSending(false);
+}
 
-      if (chain === "SOL") {
-         Sign with @solana/web3.js:
-         const { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction } = require('@solana/web3.js');
-         const connection = new Connection(RPC.SOL);
-         const fromKeypair = Keypair.fromSecretKey(bs58.decode(unlocked[activeId]));
-         const tx = new Transaction().add(SystemProgram.transfer({
-           fromPubkey: fromKeypair.publicKey,
-           toPubkey: new PublicKey(sendTo),
-           lamports: Math.floor(amount * 1e9),
-         }));
-         const txid = await sendAndConfirmTransaction(connection, tx, [fromKeypair]);
-         setSendTxid(txid);
-        setSendTxid(`[SOL_SIGN_READY] amount:${amount} SOL to ${sendTo}, fee:${fee} SOL`);
-        showToast("✅ SOL transaction built — add @solana/web3.js to broadcast");
-      }
-    } catch (e: any) { setSendError(e.message); }
-    setSending(false);
-  }
-
-  // ── UNLOCK VAULT ──────────────────────────────────────────────────────
+     // ── UNLOCK VAULT ──────────────────────────────────────────────────────
   async function handleUnlock() {
     if (!password.trim()) return setError("Enter vault password.");
     setSaving(true); setError("");
