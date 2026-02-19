@@ -417,4 +417,3 @@ function buildRecommendation({ amount, selectedToken, fees, feeUnit, bestWallet,
 
   return lines.join('\n');
 }
-
