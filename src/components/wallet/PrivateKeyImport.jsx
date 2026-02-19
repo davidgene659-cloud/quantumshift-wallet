@@ -125,11 +125,12 @@ const PrivateKeyImportDialog = ({ isOpen, onClose, onImport }) => {
           }
         }
         
+        // Show all derived wallets even if balance is 0
         if (allWallets.length > 0) {
           setScanResults(allWallets);
-          toast.success(`Found ${allWallets.length} wallets with balances!`);
+          toast.success(`Derived ${allWallets.length} addresses. Import to track balances.`);
         } else {
-          toast.warning('No wallets with balances found across selected networks');
+          toast.warning('No addresses could be derived from this private key. Check the key format.');
         }
         
         setIsScanning(false);
