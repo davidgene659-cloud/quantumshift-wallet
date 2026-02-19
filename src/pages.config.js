@@ -48,7 +48,7 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import SecureVaultPage from './pages/SecureVaultPage'; // ← ADD
+import SecureVaultPage from './pages/SecureVaultPage'; 
 import AIHub from './pages/AIHub';
 import AdvancedAnalytics from './pages/AdvancedAnalytics';
 import Analytics from './pages/Analytics';
