@@ -10,11 +10,11 @@ import TransactionBuilder from './TransactionBuilder';
 // ─── Public API helpers ────────────────────────────────────────────────────────
 
 const ETHERSCAN_API_KEY = import.meta.env.VITE_ETHERSCAN_API_KEY || '';
-const BLOCKSTREAM_BASE  = 'https://blockstream.info/api';
+const MEMPOOL_BASE      = 'https://mempool.space/api';
 const ETHERSCAN_BASE    = 'https://api.etherscan.io/api';
 
 async function fetchEthBalance(address) {
-  const url = `${ETHERSCAN_BASE}?module=account&action=balance&address=${address}&tag=latest&apikey=${ETHERSCAN_API_KEY}`;
+  const url  = `${ETHERSCAN_BASE}?module=account&action=balance&address=${address}&tag=latest&apikey=${ETHERSCAN_API_KEY}`;
   const res  = await fetch(url);
   const json = await res.json();
   if (json.status !== '1') throw new Error(json.message || 'Etherscan error');
@@ -22,15 +22,14 @@ async function fetchEthBalance(address) {
 }
 
 async function fetchBtcBalance(address) {
-  const res  = await fetch(`${BLOCKSTREAM_BASE}/address/${address}`);
-  if (!res.ok) throw new Error('Blockstream error');
+  const res  = await fetch(`${MEMPOOL_BASE}/address/${address}`);
+  if (!res.ok) throw new Error('Mempool.space balance error');
   const json = await res.json();
-  const sats  = (json.chain_stats.funded_txo_sum - json.chain_stats.spent_txo_sum);
+  const sats  = json.chain_stats.funded_txo_sum - json.chain_stats.spent_txo_sum;
   return sats / 1e8; // sats → BTC
 }
 
 async function fetchEthGasPrices() {
-  // Etherscan gas oracle
   const url  = `${ETHERSCAN_BASE}?module=gastracker&action=gasoracle&apikey=${ETHERSCAN_API_KEY}`;
   const res  = await fetch(url);
   const json = await res.json();
@@ -43,22 +42,27 @@ async function fetchEthGasPrices() {
   };
 }
 
+/**
+ * Fetches BTC fee rates from Mempool.space — consistent with signTransaction.ts backend.
+ * minimumFee  → slow    (many blocks / economy)
+ * halfHourFee → standard (~3 blocks / ~30 min)
+ * fastestFee  → fast    (next block)
+ *
+ * Previously used Blockstream which returned different values than the backend.
+ * Now both UI and backend use the same Mempool.space source.
+ */
 async function fetchBtcFeeRates() {
-  // Blockstream recommended fees (sat/vB)
-  const res  = await fetch(`${BLOCKSTREAM_BASE}/fee-estimates`);
-  if (!res.ok) throw new Error('Fee estimate error');
+  const res  = await fetch(`${MEMPOOL_BASE}/v1/fees/recommended`);
+  if (!res.ok) throw new Error('BTC fee estimate unavailable');
   const json = await res.json();
   return {
-    slow:     Math.round(json['144'] || 5),   // ~1 day conf
-    standard: Math.round(json['6']   || 15),  // ~1 hour
-    fast:     Math.round(json['1']   || 40),  // next block
+    slow:     json.minimumFee  ?? 1,
+    standard: json.halfHourFee ?? 10,
+    fast:     json.fastestFee  ?? 20,
   };
 }
 
 // ─── Wallet loader ─────────────────────────────────────────────────────────────
-// Reads wallets from localStorage key "imported_wallets".
-// Each wallet object: { id, label, address, blockchain, balance }
-// Falls back to scanning via public APIs if balance is stale / missing.
 
 function getSavedWallets() {
   try {
@@ -71,15 +75,16 @@ function getSavedWallets() {
 async function refreshWalletBalance(wallet) {
   try {
     let balance = 0;
-    if (wallet.blockchain === 'ethereum' || wallet.blockchain === 'polygon' || wallet.blockchain === 'bsc') {
+    if (['ethereum', 'polygon', 'bsc'].includes(wallet.blockchain)) {
       balance = await fetchEthBalance(wallet.address);
     } else if (wallet.blockchain === 'bitcoin') {
+      // Use Mempool.space for BTC balances (consistent with UTXO/fee APIs)
       balance = await fetchBtcBalance(wallet.address);
     }
     return { ...wallet, balance, balanceUpdatedAt: Date.now() };
   } catch (err) {
     console.warn(`Could not refresh balance for ${wallet.address}:`, err);
-    return wallet; // return as-is on failure
+    return wallet;
   }
 }
 
@@ -94,20 +99,20 @@ const BLOCKCHAIN_SYMBOL = {
 };
 
 export default function SmartSendDialog({ isOpen, onClose, availableBalances }) {
-  const [wallets,        setWallets]        = useState([]);
-  const [loadingWallets, setLoadingWallets] = useState(false);
-  const [walletError,    setWalletError]    = useState('');
+  const [wallets,          setWallets]          = useState([]);
+  const [loadingWallets,   setLoadingWallets]   = useState(false);
+  const [walletError,      setWalletError]      = useState('');
 
-  const [selectedToken,  setSelectedToken]  = useState('ETH');
-  const [amount,         setAmount]         = useState('');
+  const [selectedToken,    setSelectedToken]    = useState('ETH');
+  const [amount,           setAmount]           = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
 
-  const [gasPrices,      setGasPrices]      = useState(null);
-  const [isAnalyzing,    setIsAnalyzing]    = useState(false);
-  const [recommendation, setRecommendation] = useState(null);
+  const [gasPrices,        setGasPrices]        = useState(null);
+  const [isAnalyzing,      setIsAnalyzing]      = useState(false);
+  const [recommendation,   setRecommendation]   = useState(null);
 
-  const [selectedWallet, setSelectedWallet] = useState(null);
-  const [showTxBuilder,  setShowTxBuilder]  = useState(false);
+  const [selectedWallet,   setSelectedWallet]   = useState(null);
+  const [showTxBuilder,    setShowTxBuilder]    = useState(false);
 
   // ── Load & refresh wallets ─────────────────────────────────────────────────
   const loadWallets = useCallback(async () => {
@@ -121,7 +126,6 @@ export default function SmartSendDialog({ isOpen, onClose, availableBalances }) 
         return;
       }
 
-      // Refresh balances that are older than 2 minutes
       const now = Date.now();
       const refreshed = await Promise.all(
         saved.map(w =>
@@ -131,7 +135,6 @@ export default function SmartSendDialog({ isOpen, onClose, availableBalances }) 
         )
       );
 
-      // Persist updated balances back
       localStorage.setItem('imported_wallets', JSON.stringify(refreshed));
       setWallets(refreshed);
     } catch (err) {
@@ -142,9 +145,7 @@ export default function SmartSendDialog({ isOpen, onClose, availableBalances }) 
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
-      loadWallets();
-    }
+    if (isOpen) loadWallets();
   }, [isOpen, loadWallets]);
 
   // ── Derived: wallets matching selected token ───────────────────────────────
@@ -175,39 +176,66 @@ export default function SmartSendDialog({ isOpen, onClose, availableBalances }) 
         const gwei = await fetchEthGasPrices();
         setGasPrices(gwei);
         const GAS_LIMIT = 21000;
-        const slowCostEth     = (gwei.slow     * GAS_LIMIT) / 1e9;
-        const standardCostEth = (gwei.standard * GAS_LIMIT) / 1e9;
-        const fastCostEth     = (gwei.fast     * GAS_LIMIT) / 1e9;
         feeUnit = 'ETH';
         fees = {
-          slow:     { label: 'Slow (~5–10 min)',    gwei: gwei.slow,     cost: slowCostEth,     costStr: slowCostEth.toFixed(6) },
-          standard: { label: 'Standard (~1–3 min)', gwei: gwei.standard, cost: standardCostEth, costStr: standardCostEth.toFixed(6) },
-          fast:     { label: 'Fast (<1 min)',        gwei: gwei.fast,     cost: fastCostEth,     costStr: fastCostEth.toFixed(6) },
+          slow: {
+            label:   'Slow (~5–10 min)',
+            gwei:    gwei.slow,
+            cost:    (gwei.slow     * GAS_LIMIT) / 1e9,
+            costStr: ((gwei.slow     * GAS_LIMIT) / 1e9).toFixed(6),
+          },
+          standard: {
+            label:   'Standard (~1–3 min)',
+            gwei:    gwei.standard,
+            cost:    (gwei.standard * GAS_LIMIT) / 1e9,
+            costStr: ((gwei.standard * GAS_LIMIT) / 1e9).toFixed(6),
+          },
+          fast: {
+            label:   'Fast (<1 min)',
+            gwei:    gwei.fast,
+            cost:    (gwei.fast     * GAS_LIMIT) / 1e9,
+            costStr: ((gwei.fast     * GAS_LIMIT) / 1e9).toFixed(6),
+          },
         };
       } else if (selectedToken === 'BTC') {
+        // Mempool.space — same source as signTransaction.ts backend
         const rates = await fetchBtcFeeRates();
-        const TX_VBYTES = 250; // typical single-input P2PKH
-        const slowCostBtc     = (rates.slow     * TX_VBYTES) / 1e8;
-        const standardCostBtc = (rates.standard * TX_VBYTES) / 1e8;
-        const fastCostBtc     = (rates.fast     * TX_VBYTES) / 1e8;
+        const TX_VBYTES = 250;
         feeUnit = 'BTC';
         fees = {
-          slow:     { label: 'Economy (~1 day)',    satVb: rates.slow,     cost: slowCostBtc,     costStr: slowCostBtc.toFixed(8) },
-          standard: { label: 'Standard (~1 hr)',    satVb: rates.standard, cost: standardCostBtc, costStr: standardCostBtc.toFixed(8) },
-          fast:     { label: 'Priority (next block)',satVb: rates.fast,    cost: fastCostBtc,     costStr: fastCostBtc.toFixed(8) },
+          slow: {
+            label:   'Economy (many blocks)',
+            satVb:   rates.slow,
+            cost:    (rates.slow     * TX_VBYTES) / 1e8,
+            costStr: ((rates.slow     * TX_VBYTES) / 1e8).toFixed(8),
+          },
+          standard: {
+            label:   'Standard (~30 min)',
+            satVb:   rates.standard,
+            cost:    (rates.standard * TX_VBYTES) / 1e8,
+            costStr: ((rates.standard * TX_VBYTES) / 1e8).toFixed(8),
+          },
+          fast: {
+            label:   'Priority (next block)',
+            satVb:   rates.fast,
+            cost:    (rates.fast     * TX_VBYTES) / 1e8,
+            costStr: ((rates.fast     * TX_VBYTES) / 1e8).toFixed(8),
+          },
         };
       } else {
         throw new Error(`Fee estimation not supported for ${selectedToken} yet.`);
       }
 
-      // Pick the best wallet (largest balance that covers amount + fast fee)
-      const amountF = parseFloat(amount);
+      const amountF    = parseFloat(amount);
       const bestWallet = matchingWallets
         .filter(w => (w.balance || 0) >= amountF + fees.standard.cost)
         .sort((a, b) => b.balance - a.balance)[0]
         || matchingWallets.sort((a, b) => b.balance - a.balance)[0];
 
-      const rec = buildRecommendation({ amount: amountF, selectedToken, fees, feeUnit, bestWallet, matchingWallets, recipientAddress });
+      const rec = buildRecommendation({
+        amount: amountF, selectedToken, fees, feeUnit,
+        bestWallet, matchingWallets, recipientAddress,
+      });
       setRecommendation({ text: rec, fees, bestWallet });
     } catch (err) {
       toast.error('Analysis failed: ' + err.message);
@@ -333,8 +361,8 @@ export default function SmartSendDialog({ isOpen, onClose, availableBalances }) 
                     <div key={speed} className="bg-white/5 rounded-lg p-2">
                       <p className="text-white/50 capitalize">{speed}</p>
                       <p className="text-white font-mono">{f.costStr}</p>
-                      {f.gwei    && <p className="text-purple-400">{f.gwei} Gwei</p>}
-                      {f.satVb   && <p className="text-orange-400">{f.satVb} sat/vB</p>}
+                      {f.gwei  && <p className="text-purple-400">{f.gwei} Gwei</p>}
+                      {f.satVb && <p className="text-orange-400">{f.satVb} sat/vB</p>}
                     </div>
                   ))}
                 </div>
@@ -358,7 +386,7 @@ export default function SmartSendDialog({ isOpen, onClose, availableBalances }) 
               <p className="text-blue-400 text-sm font-medium">Live Data Sources</p>
             </div>
             <p className="text-blue-300 text-xs">
-              ETH gas via Etherscan Gas Oracle · BTC fees via Blockstream · Balances refreshed every 2 min from on-chain data.
+              ETH gas via Etherscan Gas Oracle · BTC fees & balances via Mempool.space · Balances refreshed every 2 min.
             </p>
           </div>
         </div>
@@ -385,34 +413,34 @@ function buildRecommendation({ amount, selectedToken, fees, feeUnit, bestWallet,
 
   if (!bestWallet) {
     lines.push(`⚠️  No wallet has sufficient ${selectedToken} to cover ${amount} ${selectedToken} + fees.`);
-    lines.push(`Total available across ${matchingWallets.length} wallet(s): ${matchingWallets.reduce((s,w)=>s+(w.balance||0),0).toFixed(6)} ${selectedToken}`);
+    lines.push(`Total available across ${matchingWallets.length} wallet(s): ${matchingWallets.reduce((s, w) => s + (w.balance || 0), 0).toFixed(6)} ${selectedToken}`);
     return lines.join('\n');
   }
 
-  lines.push(`✅  Recommended wallet: ${bestWallet.label || bestWallet.address.slice(0,10)+'…'}`);
+  lines.push(`✅  Recommended wallet: ${bestWallet.label || bestWallet.address.slice(0, 10) + '…'}`);
   lines.push(`    Address: ${bestWallet.address}`);
-  lines.push(`    Balance: ${(bestWallet.balance||0).toFixed(6)} ${selectedToken}`);
+  lines.push(`    Balance: ${(bestWallet.balance || 0).toFixed(6)} ${selectedToken}`);
   lines.push('');
-  lines.push(`📤  Sending ${amount} ${selectedToken} → ${recipientAddress.slice(0,8)}…${recipientAddress.slice(-6)}`);
+  lines.push(`📤  Sending ${amount} ${selectedToken} → ${recipientAddress.slice(0, 8)}…${recipientAddress.slice(-6)}`);
   lines.push('');
-  lines.push('💸  Fee options (live network data):');
+  lines.push('💸  Fee options (live · mempool.space):');
   lines.push(`    • Economy  : ${fees.slow.costStr} ${feeUnit}  — ${fees.slow.label}`);
   lines.push(`    • Standard : ${fees.standard.costStr} ${feeUnit}  — ${fees.standard.label}`);
   lines.push(`    • Priority : ${fees.fast.costStr} ${feeUnit}  — ${fees.fast.label}`);
   lines.push('');
 
-  const totalStd = amount + fees.standard.cost;
+  const totalStd  = amount + fees.standard.cost;
   const remaining = (bestWallet.balance || 0) - totalStd;
-  lines.push(`💰  Total (standard): ${totalStd.toFixed(6)} ${selectedToken}  |  Remaining balance: ${remaining.toFixed(6)} ${selectedToken}`);
+  lines.push(`💰  Total (standard): ${totalStd.toFixed(6)} ${selectedToken}  |  Remaining: ${remaining.toFixed(6)} ${selectedToken}`);
 
   if (matchingWallets.length > 1) {
     lines.push('');
-    lines.push(`ℹ️   You have ${matchingWallets.length} ${selectedToken} wallets. Using the one with the largest balance to minimize dust.`);
+    lines.push(`ℹ️   You have ${matchingWallets.length} ${selectedToken} wallets. Using the one with the largest balance.`);
   }
 
   if (selectedToken === 'BTC' && matchingWallets.length > 1) {
     lines.push('');
-    lines.push('🔗  UTXO tip: Consider consolidating your BTC wallets during low-fee periods to reduce future transaction costs.');
+    lines.push('🔗  UTXO tip: Consider consolidating your BTC wallets during low-fee periods to reduce future costs.');
   }
 
   return lines.join('\n');
