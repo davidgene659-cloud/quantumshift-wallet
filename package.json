@@ -12,6 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "buffer": "^6.0.3",
     "react": "...",
     "react-dom": "...",
     "bitcoinjs-lib": "^6.1.5",
