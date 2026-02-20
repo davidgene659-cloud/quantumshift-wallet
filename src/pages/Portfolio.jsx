@@ -258,83 +258,6 @@ export default function Portfolio() {
                 </div>
             </motion.div>
 
-        {/* Portfolio Chart */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <PortfolioChart totalValue={showBalance ? totalValue : 0} />
-        </motion.div>
-
-        {/* Balance Guardian AI */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.14 }}
-        >
-          <BalanceGuardianWidget
-            totalValue={totalValue}
-            tokens={tokens}
-            allWalletBalances={allWalletBalances}
-            allTokenBalances={allTokenBalances}
-          />
-        </motion.div>
-
-        {/* Debug Panel */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-        >
-          <DebugPanel
-            allWalletBalances={allWalletBalances}
-            allTokenBalances={allTokenBalances}
-            balanceError={balanceError}
-            tokenError={tokenError}
-            totalValue={totalValue}
-            realTotal={realTotal}
-            tokensTotal={tokensTotal}
-            tokens={tokens}
-          />
-        </motion.div>
-
-        {/* Market Alerts */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.16 }}
-        >
-          <MarketAlerts />
-        </motion.div>
-
-        {/* Security Monitor */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.17 }}
-        >
-          <SecurityMonitor />
-        </motion.div>
-
-        {/* Portfolio Shield */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.18 }}
-        >
-          <PortfolioShield />
-        </motion.div>
-
-        {/* Sponsor Banner */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.19 }}
-        >
-          <SponsorBanner />
-        </motion.div>
-
         {/* Quick Actions */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -353,15 +276,6 @@ export default function Portfolio() {
           <QuickActions />
         </motion.div>
 
-        {/* Rewards System */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-        >
-          <RewardsSystem />
-        </motion.div>
-
         {/* Wallet Sweeper */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -378,33 +292,6 @@ export default function Portfolio() {
           transition={{ delay: 0.27 }}
         >
           <CrossChainExecutor />
-        </motion.div>
-
-        {/* Bridge Comparison */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.275 }}
-        >
-          <BridgeComparison />
-        </motion.div>
-
-        {/* Cross-Chain Bridge */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.28 }}
-        >
-          <CrossChainBridge tokens={tokens} />
-        </motion.div>
-
-        {/* Asset Distribution */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.28 }}
-        >
-          <AssetDistribution tokens={tokens} totalValue={totalValue} />
         </motion.div>
 
         {/* Token Holdings */}
