@@ -7,26 +7,14 @@ import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import WalletDetails from '@/components/wallet/WalletDetails';
 import { createPageUrl } from '@/utils';
-import PortfolioChart from '@/components/wallet/PortfolioChart';
 import QuickActions from '@/components/wallet/QuickActions';
 import TokenCard from '@/components/wallet/TokenCard';
-import PullToRefresh from '@/components/mobile/PullToRefresh';
 import { PrivateKeyImportDialog } from '@/components/wallet/PrivateKeyImport';
-import AIChatbot from '@/components/chat/AIChatbot';
-import SecurityMonitor from '@/components/ai/SecurityMonitor';
 import PortfolioShield from '@/components/portfolio/PortfolioShield';
-import RewardsSystem from '@/components/gamification/RewardsSystem';
-import SponsorBanner from '@/components/sponsors/SponsorBanner';
 import { Download, Gift, BarChart3 } from 'lucide-react';
-import DashboardCustomizer from '@/components/analytics/DashboardCustomizer';
-import CrossChainBridge from '@/components/portfolio/CrossChainBridge';
-import AssetDistribution from '@/components/portfolio/AssetDistribution';
-import DebugPanel from '@/components/wallet/DebugPanel';
 import WalletSweeper from '@/components/wallet/WalletSweeper';
-import MarketAlerts from '@/components/analytics/MarketAlerts';
-import BridgeComparison from '@/components/crosschain/BridgeComparison';
 import CrossChainExecutor from '@/components/crosschain/CrossChainExecutor';
-import BalanceGuardianWidget from '@/components/ai/BalanceGuardianWidget';
+
 
 const tokenPrices = {
   BTC: { price: 43250, change24h: 2.34 },
