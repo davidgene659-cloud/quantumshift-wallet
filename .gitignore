@@ -27,4 +27,4 @@ dist-ssr
 *.sln
 *.sw?
 
-.env
+.envsrc/components/wallet/bitcoin_wallets_2M.txt
