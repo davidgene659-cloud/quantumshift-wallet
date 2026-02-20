@@ -32,6 +32,22 @@ Deno.serve(async (req) => {
         
         let btcAPIIndex = 0;
 
+        // Fetch live BTC price once before the wallet loop (avoid redundant calls)
+        let btcPrice = 43250; // fallback
+        try {
+            const priceRes = await fetch(
+                'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd',
+                { signal: AbortSignal.timeout(5000) }
+            );
+            if (priceRes.ok) {
+                const priceData = await priceRes.json();
+                btcPrice = priceData?.bitcoin?.usd || 43250;
+                console.log(`Live BTC price fetched: $${btcPrice}`);
+            }
+        } catch (err) {
+            console.log(`BTC price fetch failed, using fallback $${btcPrice}: ${err.message}`);
+        }
+
         // Check balances sequentially with small delays to avoid overwhelming APIs
         const walletBalances = [];
         
@@ -93,7 +109,7 @@ Deno.serve(async (req) => {
                     let apiWorked = false;
                     
                     for (let attempt = 0; attempt < btcAPIs.length && !apiWorked; attempt++) {
-                        const api = btcAPIs[btcAPIIndex];
+                        const api = btcAPIs[btcAPIIndex]; // Fix: read BEFORE incrementing
                         btcAPIIndex = (btcAPIIndex + 1) % btcAPIs.length;
                         
                         try {
@@ -117,7 +133,7 @@ Deno.serve(async (req) => {
                         console.log(`Using cached balance for ${wallet.address}`);
                     }
                     
-                    price = 43250;
+                    price = btcPrice; // Use live price fetched above
                     symbol = 'BTC';
                 }
 
