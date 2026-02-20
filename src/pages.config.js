@@ -8,8 +8,7 @@
  * This controls which page is the landing page (shown when users visit the app).
  * 
  * Example file structure:
- *   
- *   import SecureVaultPage from './pages/SecureVaultPage'; 
+ * 
  *   import HomePage from './pages/HomePage';
  *   import Dashboard from './pages/Dashboard';
  *   import Settings from './pages/Settings';
@@ -48,7 +47,6 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import SecureVaultPage from './pages/SecureVaultPage'; 
 import AIHub from './pages/AIHub';
 import AdvancedAnalytics from './pages/AdvancedAnalytics';
 import Analytics from './pages/Analytics';
@@ -74,7 +72,6 @@ import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "SecureVaultPage": SecureVaultPage,
     "AIHub": AIHub,
     "AdvancedAnalytics": AdvancedAnalytics,
     "Analytics": Analytics,
@@ -96,7 +93,6 @@ export const PAGES = {
     "Swap": Swap,
     "TradingBots": TradingBots,
     "VirtualCard": VirtualCard,
-     
 }
 
 export const pagesConfig = {
