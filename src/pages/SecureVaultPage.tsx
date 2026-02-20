@@ -49,12 +49,12 @@ async function decryptPrivateKey(encB64: string, ivB64: string, password: string
 // ═══════════════════════════════════════════════════════════════════════════
 const RPC = {
   ETH:  "https://ethereum.publicnode.com",
-  BTC:  "https://mempool.space/api",          // mempool.space REST API
+  BTC:  "https://mempool.space/api",
   SOL:  "https://api.mainnet-beta.solana.com",
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// BITCOIN — mempool.space (free, no API key)
+// BITCOIN — mempool.space
 // ═══════════════════════════════════════════════════════════════════════════
 async function btcFetchBalance(address: string) {
   const r = await fetch(`${RPC.BTC}/address/${address}`);
@@ -70,7 +70,7 @@ async function btcFetchUTXOs(address: string) {
   if (!r.ok) throw new Error("BTC UTXO fetch failed");
   const utxos = await r.json();
   return utxos.map((u: any) => ({
-    txid: u.txid, vout: u.vout, value: u.value,         // value in satoshis
+    txid: u.txid, vout: u.vout, value: u.value,
     confirmed: u.status?.confirmed ?? false,
   }));
 }
@@ -80,13 +80,12 @@ async function btcFetchFees() {
   if (!r.ok) throw new Error("BTC fee fetch failed");
   const d = await r.json();
   return {
-    slow:   d.hourFee,    // sat/vByte
+    slow:   d.hourFee,
     medium: d.halfHourFee,
     fast:   d.fastestFee,
   };
 }
 
-// Simple UTXO selection: largest-first greedy
 function btcSelectUTXOs(utxos: any[], targetSats: number, feeSats: number) {
   const sorted = [...utxos].sort((a, b) => b.value - a.value);
   const selected: any[] = [];
@@ -99,14 +98,13 @@ function btcSelectUTXOs(utxos: any[], targetSats: number, feeSats: number) {
   return { selected, total, change: total - targetSats - feeSats };
 }
 
-// Fee estimate: P2PKH tx size = 148*inputs + 34*outputs + 10
 function btcEstimateFee(numInputs: number, numOutputs: number, satPerVbyte: number) {
   const vBytes = 148 * numInputs + 34 * numOutputs + 10;
   return vBytes * satPerVbyte;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ETHEREUM — publicnode.com (free, no API key)
+// ETHEREUM — publicnode.com
 // ═══════════════════════════════════════════════════════════════════════════
 async function ethRpc(method: string, params: any[]) {
   const r = await fetch(RPC.ETH, {
@@ -121,7 +119,7 @@ async function ethRpc(method: string, params: any[]) {
 
 async function ethFetchBalance(address: string) {
   const hex = await ethRpc("eth_getBalance", [address, "latest"]);
-  return parseInt(hex, 16) / 1e18;  // ETH
+  return parseInt(hex, 16) / 1e18;
 }
 
 async function ethFetchGas() {
@@ -143,7 +141,7 @@ async function ethEstimateGasLimit(from: string, to: string, value: string) {
   try {
     const hex = await ethRpc("eth_estimateGas", [{ from, to, value }]);
     return parseInt(hex, 16);
-  } catch { return 21000; }  // standard ETH transfer fallback
+  } catch { return 21000; }
 }
 
 async function ethFetchNonce(address: string) {
@@ -157,7 +155,7 @@ async function ethFetchChainId() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SOLANA — mainnet-beta (free public RPC)
+// SOLANA — mainnet-beta
 // ═══════════════════════════════════════════════════════════════════════════
 async function solRpc(method: string, params: any[]) {
   const r = await fetch(RPC.SOL, {
@@ -172,12 +170,10 @@ async function solRpc(method: string, params: any[]) {
 
 async function solFetchBalance(address: string) {
   const result = await solRpc("getBalance", [address]);
-  return (result?.value ?? 0) / 1e9;  // lamports → SOL
+  return (result?.value ?? 0) / 1e9;
 }
 
 async function solFetchFee() {
-  // Standard Solana fee: 5000 lamports per signature
-  // getRecentBlockhash gives fee calculator
   try {
     const result = await solRpc("getRecentBlockhash", []);
     return (result?.value?.feeCalculator?.lamportsPerSignature ?? 5000) / 1e9;
@@ -228,8 +224,7 @@ const CASINO_OPTIONS = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
-// QR CODE — pure SVG (no library needed)
-// Simple URL-based QR using a free API
+// QR CODE
 // ═══════════════════════════════════════════════════════════════════════════
 function QRCode({ value, size = 160 }: { value: string; size?: number }) {
   return (
@@ -287,6 +282,13 @@ export default function SecureVaultPage() {
   const [error, setError]             = useState("");
   const [toast, setToast]             = useState("");
 
+  // ── Export state ──────────────────────────────────────────────────────
+  const [exportModal, setExportModal] = useState(false);
+  const [exportPassword, setExportPassword] = useState("");
+  const [exportIncludeKeys, setExportIncludeKeys] = useState(true);
+  const [exportError, setExportError] = useState("");
+  const [exporting, setExporting] = useState(false);
+
   const refreshRef = useRef<any>(null);
 
   // ── Load entities from Base44 ─────────────────────────────────────────
@@ -307,7 +309,6 @@ export default function SecureVaultPage() {
   useEffect(() => {
     if (!activeWallet?.address) return;
     fetchChainData(activeWallet);
-    // Auto-refresh every 30s
     if (refreshRef.current) clearInterval(refreshRef.current);
     refreshRef.current = setInterval(() => fetchChainData(activeWallet), 30000);
     return () => clearInterval(refreshRef.current);
@@ -337,7 +338,6 @@ export default function SecureVaultPage() {
         setLiveBalance(bal);
         setUtxos(utxoList);
         setFees(feeData);
-        // Update Wallet entity with live balance
         const usdPrice = await fetchBtcPrice();
         const total_usd_value = +(bal.total * usdPrice).toFixed(2);
         const updated = await Wallet.update(w.id, {
@@ -384,7 +384,7 @@ export default function SecureVaultPage() {
     setChainLoading(false);
   }
 
-  // ── Price fetchers (CoinGecko free API) ───────────────────────────────
+  // ── Price fetchers ────────────────────────────────────────────────────
   async function fetchBtcPrice() {
     try {
       const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
@@ -413,7 +413,7 @@ export default function SecureVaultPage() {
     }
     if (chain === "ETH") {
       const gas = fees[sendTier];
-      return (gas.maxFee * 21000) / 1e9; // ETH
+      return (gas.maxFee * 21000) / 1e9;
     }
     if (chain === "SOL") return fees[sendTier] || 0.000005;
     return 0;
@@ -429,29 +429,13 @@ export default function SecureVaultPage() {
     if (amount + fee > balance) return setSendError(`Insufficient funds. Balance: ${balance.toFixed(8)} ${CHAIN_NATIVE[chain]}, Fee: ${fee.toFixed(8)}`);
     setSending(true); setSendError("");
     try {
-      // NOTE: Actual transaction signing requires chain-specific libraries
-      // (bitcoinjs-lib, ethers.js, @solana/web3.js) loaded via CDN or bundler.
-      // Below is the complete signing flow — wire in your bundler to activate.
-
       if (chain === "BTC") {
         const satTarget = Math.floor(amount * 1e8);
         const satFee    = Math.floor(fee * 1e8);
         const { selected, change } = btcSelectUTXOs(utxos, satTarget, satFee);
-        // Build & sign with bitcoinjs-lib:
-        // const bitcoin = require('bitcoinjs-lib');
-        // const keyPair = bitcoin.ECPair.fromWIF(unlocked[activeId]);
-        // const psbt = new bitcoin.Psbt();
-        // selected.forEach(u => psbt.addInput({ hash: u.txid, index: u.vout }));
-        // psbt.addOutput({ address: sendTo, value: satTarget });
-        // if (change > 546) psbt.addOutput({ address: activeWallet.address, value: change });
-        // psbt.signAllInputs(keyPair); psbt.finalizeAllInputs();
-        // const rawHex = psbt.extractTransaction().toHex();
-        // const broadcastR = await fetch(`${RPC.BTC}/tx`, { method: 'POST', body: rawHex });
-        // const txid = await broadcastR.text();
         setSendTxid(`[BTC_SIGN_READY] ${selected.length} UTXOs selected, fee: ${satFee} sats, change: ${change} sats`);
         showToast("✅ BTC transaction built — add bitcoinjs-lib to broadcast");
       }
-
       if (chain === "ETH") {
         const [nonce, chainId, gasLimit] = await Promise.all([
           ethFetchNonce(activeWallet.address),
@@ -459,36 +443,10 @@ export default function SecureVaultPage() {
           ethEstimateGasLimit(activeWallet.address, sendTo, "0x" + Math.floor(amount * 1e18).toString(16)),
         ]);
         const gas = fees[sendTier];
-        // Sign with ethers.js:
-        // const { ethers } = require('ethers');
-        // const wallet = new ethers.Wallet(unlocked[activeId]);
-        // const provider = new ethers.JsonRpcProvider(RPC.ETH);
-        // const tx = await wallet.connect(provider).sendTransaction({
-        //   to: sendTo,
-        //   value: ethers.parseEther(sendAmount),
-        //   maxFeePerGas: ethers.parseUnits(gas.maxFee.toFixed(9), 'gwei'),
-        //   maxPriorityFeePerGas: ethers.parseUnits(gas.priority.toFixed(9), 'gwei'),
-        //   gasLimit,
-        //   chainId,
-        //   nonce,
-        // });
-        // setSendTxid(tx.hash);
         setSendTxid(`[ETH_SIGN_READY] nonce:${nonce} chainId:${chainId} gasLimit:${gasLimit} maxFee:${gas.maxFee.toFixed(2)}gwei`);
         showToast("✅ ETH transaction built — add ethers.js to broadcast");
       }
-
       if (chain === "SOL") {
-        // Sign with @solana/web3.js:
-        // const { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction } = require('@solana/web3.js');
-        // const connection = new Connection(RPC.SOL);
-        // const fromKeypair = Keypair.fromSecretKey(bs58.decode(unlocked[activeId]));
-        // const tx = new Transaction().add(SystemProgram.transfer({
-        //   fromPubkey: fromKeypair.publicKey,
-        //   toPubkey: new PublicKey(sendTo),
-        //   lamports: Math.floor(amount * 1e9),
-        // }));
-        // const txid = await sendAndConfirmTransaction(connection, tx, [fromKeypair]);
-        // setSendTxid(txid);
         setSendTxid(`[SOL_SIGN_READY] amount:${amount} SOL to ${sendTo}, fee:${fee} SOL`);
         showToast("✅ SOL transaction built — add @solana/web3.js to broadcast");
       }
@@ -571,6 +529,77 @@ export default function SecureVaultPage() {
     showToast(idx >= 0 ? `⛔ Disconnected ${casino.name}` : `✅ Connected ${casino.name}`);
   }
 
+  // ── EXPORT VAULT ──────────────────────────────────────────────────────
+  async function handleExportVault() {
+    if (exportIncludeKeys && !exportPassword.trim()) {
+      return setExportError("Enter your vault password to verify identity before exporting keys.");
+    }
+    setExporting(true); setExportError("");
+    try {
+      // If including keys, verify password works on at least one vault entry
+      if (exportIncludeKeys && vaults.length > 0) {
+        const testVault = vaults[0];
+        try {
+          await decryptPrivateKey(
+            testVault.encrypted_private_key,
+            testVault.encryption_iv,
+            exportPassword,
+            testVault.wallet_id
+          );
+        } catch {
+          setExportError("Password verification failed — wrong vault password.");
+          setExporting(false);
+          return;
+        }
+      }
+
+      const exportData = {
+        exported_at: new Date().toISOString(),
+        app: "QuantumShift Wallet",
+        version: "1.0",
+        total_usd_value: grandTotal,
+        wallet_count: wallets.length,
+        note: exportIncludeKeys
+          ? "Keys are AES-256-GCM encrypted. Your vault password is required to decrypt them."
+          : "Export contains addresses and balances only. No private key data included.",
+        wallets: wallets.map(w => {
+          const vault = vaults.find(v => v.wallet_id === w.id);
+          return {
+            id: w.id,
+            label: w.label,
+            chain: w.chain,
+            address: w.address,
+            total_usd_value: w.total_usd_value || 0,
+            balances: w.balances || {},
+            connected_casinos: (w.connected_casinos || []).map((c: any) => c.name),
+            vault: exportIncludeKeys && vault ? {
+              encrypted_private_key: vault.encrypted_private_key,
+              encryption_iv: vault.encryption_iv,
+              key_type: vault.key_type || "hex",
+              last_used: vault.last_used,
+              encryption: "AES-256-GCM · PBKDF2 100k iterations · SHA-256",
+            } : vault ? { has_vault: true, key_type: vault.key_type, last_used: vault.last_used } : null,
+          };
+        }),
+      };
+
+      const json = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `securevault-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setExportModal(false);
+      setExportPassword("");
+      showToast("💾 Vault exported — store this file in a safe location");
+    } catch (e: any) {
+      setExportError("Export failed: " + e.message);
+    }
+    setExporting(false);
+  }
+
   // ── FEE DISPLAY HELPERS ───────────────────────────────────────────────
   function feeDisplay(tier: "slow"|"medium"|"fast") {
     if (!fees) return "—";
@@ -605,11 +634,21 @@ export default function SecureVaultPage() {
               <div className="text-[9px] text-neutral-600 tracking-widest">LIVE · ALL CHAINS</div>
             </div>
           </div>
-          <Button size="sm" variant="outline"
-            className="h-7 text-xs border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/10 bg-transparent"
-            onClick={() => { setImportModal(true); setError(""); setPassword(""); }}>
-            <Plus className="h-3 w-3 mr-1" />Import
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {/* Export Button */}
+            <Button size="sm" variant="outline"
+              className="h-7 text-xs border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 bg-transparent px-2"
+              title="Export Vault Backup"
+              onClick={() => { setExportModal(true); setExportError(""); setExportPassword(""); }}>
+              <Download className="h-3 w-3" />
+            </Button>
+            {/* Import Button */}
+            <Button size="sm" variant="outline"
+              className="h-7 text-xs border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/10 bg-transparent"
+              onClick={() => { setImportModal(true); setError(""); setPassword(""); }}>
+              <Plus className="h-3 w-3 mr-1" />Import
+            </Button>
+          </div>
         </div>
 
         <ScrollArea className="flex-1 px-2 py-2">
@@ -655,6 +694,7 @@ export default function SecureVaultPage() {
           <div className="text-lg font-bold text-neutral-300">
             ${grandTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
+          <div className="text-[9px] text-neutral-600 mt-0.5">{wallets.length} wallet{wallets.length !== 1 ? "s" : ""} · {vaults.length} vault{vaults.length !== 1 ? "s" : ""}</div>
         </div>
       </aside>
 
@@ -1039,7 +1079,6 @@ export default function SecureVaultPage() {
                   </div>
                 )}
               </div>
-              {/* Fee tier selector */}
               <div>
                 <Label className="text-xs text-neutral-400 mb-1.5 block">Fee Tier</Label>
                 <div className="grid grid-cols-3 gap-2">
@@ -1056,7 +1095,6 @@ export default function SecureVaultPage() {
                   ))}
                 </div>
               </div>
-              {/* Fee summary */}
               {sendAmount && (
                 <div className="bg-neutral-800/40 rounded-lg border border-neutral-800 px-3 py-2.5 flex flex-col gap-1">
                   <div className="flex justify-between text-xs">
@@ -1222,6 +1260,102 @@ export default function SecureVaultPage() {
               <Button size="sm" className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs"
                 onClick={handleImport} disabled={saving}>
                 {saving ? <><Loader2 className="h-3 w-3 mr-1 animate-spin"/>Importing…</> : "Import & Encrypt"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ EXPORT VAULT DIALOG ════════════════════════════════════════════ */}
+      <Dialog open={exportModal} onOpenChange={() => { setExportModal(false); setExportPassword(""); setExportError(""); }}>
+        <DialogContent className="bg-neutral-900 border-neutral-800 text-neutral-100 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-4 w-4 text-emerald-400" />
+              Export Vault Backup
+            </DialogTitle>
+            <DialogDescription className="text-neutral-500 text-xs leading-relaxed">
+              Downloads a JSON file with all wallet addresses, balances, and optionally encrypted private keys.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 mt-2">
+
+            {/* Summary */}
+            <div className="bg-neutral-800/40 rounded-lg border border-neutral-800 px-3 py-2.5 flex flex-col gap-1.5">
+              <div className="flex justify-between text-xs">
+                <span className="text-neutral-500">Wallets</span>
+                <span className="text-neutral-300 font-mono">{wallets.length}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-neutral-500">Vaults (encrypted keys)</span>
+                <span className="text-neutral-300 font-mono">{vaults.length}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-neutral-500">Total Value</span>
+                <span className="text-emerald-400 font-mono font-semibold">
+                  ${grandTotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+
+            {/* Include keys toggle */}
+            <div
+              className={`flex items-center justify-between px-3 py-3 rounded-lg border cursor-pointer transition-all ${
+                exportIncludeKeys ? "bg-indigo-500/10 border-indigo-500/40" : "bg-neutral-800/30 border-neutral-800/40"
+              }`}
+              onClick={() => setExportIncludeKeys(v => !v)}>
+              <div>
+                <div className="text-xs font-semibold text-neutral-200">Include Encrypted Keys</div>
+                <div className="text-[10px] text-neutral-500 mt-0.5">
+                  {exportIncludeKeys
+                    ? "Keys included — AES-256-GCM encrypted, password required to decrypt"
+                    : "Addresses & balances only — no key data"}
+                </div>
+              </div>
+              <div className={`w-9 h-5 rounded-full border transition-all flex items-center px-0.5 ${exportIncludeKeys ? "bg-indigo-500 border-indigo-400" : "bg-neutral-700 border-neutral-600"}`}>
+                <div className={`w-4 h-4 rounded-full bg-white transition-all ${exportIncludeKeys ? "translate-x-4" : "translate-x-0"}`} />
+              </div>
+            </div>
+
+            {/* Password field — only shown when including keys */}
+            {exportIncludeKeys && (
+              <div>
+                <Label className="text-xs text-neutral-400 mb-1.5 block">Vault Password (for verification)</Label>
+                <Input type="password" placeholder="Confirm your vault password…"
+                  className="bg-neutral-800 border-neutral-700 text-neutral-200 text-xs"
+                  value={exportPassword}
+                  onChange={e => { setExportPassword(e.target.value); setExportError(""); }}
+                  onKeyDown={e => e.key === "Enter" && handleExportVault()} />
+                <div className="text-[10px] text-neutral-600 mt-1.5">
+                  Password is used to verify your identity only — keys remain encrypted in the export file.
+                </div>
+              </div>
+            )}
+
+            {/* Warning */}
+            <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2.5">
+              <AlertCircle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-[10px] text-amber-300/80 leading-relaxed">
+                Store the exported file securely — offline storage or encrypted drive recommended. Never share this file.
+              </div>
+            </div>
+
+            {exportError && (
+              <div className="flex items-center gap-2 text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />{exportError}
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end mt-1">
+              <Button variant="ghost" size="sm" className="text-neutral-500 text-xs"
+                onClick={() => { setExportModal(false); setExportPassword(""); setExportError(""); }}>
+                Cancel
+              </Button>
+              <Button size="sm" className="bg-emerald-700 hover:bg-emerald-600 text-white text-xs"
+                onClick={handleExportVault} disabled={exporting}>
+                {exporting
+                  ? <><Loader2 className="h-3 w-3 mr-1 animate-spin"/>Exporting…</>
+                  : <><Download className="h-3 w-3 mr-1"/>Export Backup</>}
               </Button>
             </div>
           </div>
