@@ -1,36 +1,11 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="https://base44.com/logo_v2.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script>
-      (function() {
-        if (typeof window.Buffer === 'undefined') {
-          window.Buffer = {
-            from: function(data, encoding) {
-              if (typeof data === 'string') {
-                return new TextEncoder().encode(data);
-              }
-              return new Uint8Array(data);
-            },
-            alloc: function(size) {
-              return new Uint8Array(size);
-            },
-            isBuffer: function(obj) {
-              return obj instanceof Uint8Array;
-            },
-            concat: function(arrays) {
-              const total = arrays.reduce((s, a) => s + a.length, 0);
-              const result = new Uint8Array(total);
-              let offset = 0;
-              arrays.forEach(a => { result.set(a, offset); offset += a.length; });
-              return result;
-            }
-          };
-          globalThis.Buffer = window.Buffer;
-        }
-      })();
-    </script>
+    <link rel="manifest" href="/manifest.json" />
+    <title>Base44 APP</title>
   </head>
   <body>
     <div id="root"></div>
