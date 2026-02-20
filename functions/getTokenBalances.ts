@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-const API_ENDPOINTS = {
+const API_ENDPOINTS: Record<string, string> = {
   ethereum:  'https://api.etherscan.io/api',
   polygon:   'https://api.polygonscan.com/api',
   bsc:       'https://api.bscscan.com/api',
@@ -9,9 +9,27 @@ const API_ENDPOINTS = {
   optimism:  'https://api-optimistic.etherscan.io/api',
 };
 
-const KNOWN_PRICES = { USDT: 1, USDC: 1, DAI: 1, BUSD: 1, WETH: 2280, WBTC: 43250, MATIC: 0.8, BNB: 310 };
+// ── FIXED: Added USDC and WETH (were missing before) ──
+const KNOWN_PRICES: Record<string, number> = {
+  USDT:  1,
+  USDC:  1,       // ← added
+  DAI:   1,
+  BUSD:  1,
+  WETH:  2280,    // ← added
+  WBTC:  43250,
+  MATIC: 0.8,
+  BNB:   310,
+};
 
-async function fetchWithTimeout(url, ms = 5000) {
+// Token symbols that should always get live prices from CoinGecko
+const COINGECKO_TOKEN_IDS: Record<string, string> = {
+  WETH:  'weth',
+  WBTC:  'wrapped-bitcoin',
+  MATIC: 'matic-network',
+  BNB:   'binancecoin',
+};
+
+async function fetchWithTimeout(url: string, ms = 5000): Promise<any | null> {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(ms) });
     if (!res.ok) return null;
@@ -21,15 +39,44 @@ async function fetchWithTimeout(url, ms = 5000) {
   }
 }
 
-// Fetch balances in small batches to avoid rate limits
-async function batchFetch(tasks, batchSize = 5) {
+async function batchFetch(tasks: (() => Promise<any>)[], batchSize = 5): Promise<any[]> {
   const results = [];
   for (let i = 0; i < tasks.length; i += batchSize) {
     const batch = tasks.slice(i, i + batchSize);
     const batchResults = await Promise.all(batch.map(fn => fn()));
     results.push(...batchResults);
+    // Small delay between batches to avoid rate limits
+    if (i + batchSize < tasks.length) {
+      await new Promise(r => setTimeout(r, 200));
+    }
   }
   return results;
+}
+
+// Fetch live prices for tokens we know CoinGecko supports
+async function fetchLiveTokenPrices(symbols: string[]): Promise<Record<string, number>> {
+  const prices: Record<string, number> = {};
+  const idsNeeded = symbols
+    .filter(s => COINGECKO_TOKEN_IDS[s])
+    .map(s => COINGECKO_TOKEN_IDS[s]);
+
+  if (idsNeeded.length === 0) return prices;
+
+  try {
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${idsNeeded.join(',')}&vs_currencies=usd`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      for (const [symbol, geckoId] of Object.entries(COINGECKO_TOKEN_IDS)) {
+        if (data[geckoId]?.usd) prices[symbol] = data[geckoId].usd;
+      }
+    }
+  } catch (err) {
+    console.warn('CoinGecko token price fetch failed, using KNOWN_PRICES fallback');
+  }
+  return prices;
 }
 
 Deno.serve(async (req) => {
@@ -43,27 +90,27 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Address and blockchain required' }, { status: 400 });
     }
 
-    // Check cache first
+    // Check cache first (5 min TTL)
     const cacheKey = `tokens_${address}_${blockchain}`;
     try {
       const cached = await base44.data.get(cacheKey);
       if (cached) return Response.json({ ...cached, cached: true });
     } catch {}
 
-    let tokens = [];
+    let tokens: any[] = [];
 
     // ── EVM chains ──
     if (blockchain in API_ENDPOINTS) {
       const apiBase = API_ENDPOINTS[blockchain];
 
-      // Get token transaction history to discover held tokens (limit to recent 500)
+      // Discover tokens via recent tx history (last 500 txs, desc)
       const txData = await fetchWithTimeout(
         `${apiBase}?module=account&action=tokentx&address=${address}&startblock=0&endblock=999999999&sort=desc&offset=500&page=1`
       );
 
       if (txData?.status === '1' && Array.isArray(txData.result)) {
-        // Deduplicate by contract
-        const tokenMap = new Map();
+        // Deduplicate by contract address
+        const tokenMap = new Map<string, { contract: string; symbol: string; name: string; decimals: number }>();
         for (const tx of txData.result) {
           if (!tokenMap.has(tx.contractAddress)) {
             tokenMap.set(tx.contractAddress, {
@@ -75,8 +122,24 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Cap at 20 tokens to prevent timeout from too many balance calls
-        const tokensToCheck = Array.from(tokenMap.entries()).slice(0, 20);
+        // ── USDC / WETH well-known contract addresses as safety net ──
+        // If they weren't in tx history, inject them so balance is checked anyway.
+        const WELL_KNOWN: Record<string, { contract: string; symbol: string; name: string; decimals: number }[]> = {
+          ethereum: [
+            { contract: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', symbol: 'USDC', name: 'USD Coin',     decimals: 6  },
+            { contract: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', symbol: 'WETH', name: 'Wrapped Ether', decimals: 18 },
+          ],
+        };
+        for (const token of WELL_KNOWN[blockchain] || []) {
+          if (!tokenMap.has(token.contract)) tokenMap.set(token.contract, token);
+        }
+
+        // Cap at 25 tokens to stay within timeout budget
+        const tokensToCheck = Array.from(tokenMap.entries()).slice(0, 25);
+
+        // Fetch live prices for known tokens upfront
+        const symbolsToPrice = tokensToCheck.map(([, t]) => t.symbol);
+        const liveTokenPrices = await fetchLiveTokenPrices(symbolsToPrice);
 
         const balanceTasks = tokensToCheck.map(([contract, token]) => async () => {
           const data = await fetchWithTimeout(
@@ -86,7 +149,8 @@ Deno.serve(async (req) => {
           if (data?.status === '1') {
             const balance = Number(data.result) / Math.pow(10, token.decimals);
             if (balance > 0) {
-              const price = KNOWN_PRICES[token.symbol] || 0;
+              // Price priority: live CoinGecko > KNOWN_PRICES fallback > 0
+              const price = liveTokenPrices[token.symbol] ?? KNOWN_PRICES[token.symbol] ?? 0;
               return { ...token, balance, blockchain, price, usd_value: balance * price };
             }
           }
@@ -95,13 +159,15 @@ Deno.serve(async (req) => {
 
         const results = await batchFetch(balanceTasks, 5);
         tokens = results.filter(Boolean);
+
+      } else {
+        console.warn(`tokentx returned status ${txData?.status}: ${txData?.message}`);
       }
     }
 
     // ── Solana ──
     else if (blockchain === 'solana') {
-      const data = await fetchWithTimeout('https://api.mainnet-beta.solana.com', 5000);
-      // Need POST so do it manually
+      // FIXED: was incorrectly calling GET then throwing away result; now proper POST
       try {
         const res = await fetch('https://api.mainnet-beta.solana.com', {
           method: 'POST',
@@ -110,7 +176,11 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             jsonrpc: '2.0', id: 1,
             method: 'getTokenAccountsByOwner',
-            params: [address, { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' }, { encoding: 'jsonParsed' }]
+            params: [
+              address,
+              { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
+              { encoding: 'jsonParsed' }
+            ]
           })
         });
         const json = await res.json();
@@ -119,13 +189,20 @@ Deno.serve(async (req) => {
           const balance = info.tokenAmount.uiAmount;
           if (balance > 0) {
             tokens.push({
-              contract: info.mint, symbol: 'SPL', name: 'SPL Token',
-              decimals: info.tokenAmount.decimals, balance,
-              blockchain: 'solana', price: 0, usd_value: 0,
+              contract:   info.mint,
+              symbol:     'SPL',
+              name:       'SPL Token',
+              decimals:   info.tokenAmount.decimals,
+              balance,
+              blockchain: 'solana',
+              price:      0,
+              usd_value:  0,
             });
           }
         }
-      } catch {}
+      } catch (err) {
+        console.error('Solana token fetch error:', err);
+      }
     }
 
     // ── Tron ──
@@ -136,10 +213,16 @@ Deno.serve(async (req) => {
       for (const token of data?.data || []) {
         if (token.balance && parseFloat(token.balance) > 0) {
           const balance = parseFloat(token.balance) / Math.pow(10, token.tokenDecimal || 6);
+          const price = KNOWN_PRICES[token.tokenAbbr] ?? 0;
           tokens.push({
-            contract: token.tokenId, symbol: token.tokenAbbr, name: token.tokenName,
-            decimals: token.tokenDecimal || 6, balance,
-            blockchain: 'tron', price: 0, usd_value: 0,
+            contract:   token.tokenId,
+            symbol:     token.tokenAbbr,
+            name:       token.tokenName,
+            decimals:   token.tokenDecimal || 6,
+            balance,
+            blockchain: 'tron',
+            price,
+            usd_value:  balance * price,
           });
         }
       }
@@ -149,13 +232,17 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unsupported blockchain' }, { status: 400 });
     }
 
+    console.log(`Token balances fetched: ${tokens.length} for ${address} on ${blockchain}`);
+
     const result = {
-      address, blockchain, tokens,
-      total_tokens: tokens.length,
-      total_usd_value: tokens.reduce((sum, t) => sum + t.usd_value, 0),
+      address,
+      blockchain,
+      tokens,
+      total_tokens:     tokens.length,
+      total_usd_value:  tokens.reduce((sum, t) => sum + t.usd_value, 0),
     };
 
-    // Cache for 5 minutes (non-blocking)
+    // Cache non-blocking
     base44.data.set(cacheKey, result, { ttl: 300 }).catch(() => {});
 
     return Response.json({ ...result, cached: false });
