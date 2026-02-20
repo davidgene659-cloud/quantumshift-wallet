@@ -8,7 +8,7 @@ import {
   LayoutDashboard,
   ArrowLeft,
   Menu
-} from 'lucide-react';
+, Heart } from 'lucide-react';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Portfolio', page: 'Portfolio' },
