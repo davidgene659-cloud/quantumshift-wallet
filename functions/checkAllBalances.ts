@@ -1,6 +1,6 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
 
-const ALCHEMY_KEY = Deno.env.get("ALCHEMY_KEY") || "";
+const ALCHEMY_KEY = Deno.env.get("Yw_9raFDnP-YJeGJ_X0A6") || "";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const EVM_RPC = {
