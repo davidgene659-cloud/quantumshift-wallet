@@ -1,6 +1,3 @@
-import { Buffer } from "buffer";
-window.Buffer = Buffer;
-
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Wallet } from "@/entities/Wallet";
 import { SecureVault } from "@/entities/SecureVault";
