@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
+  Shield,
   Wallet, 
   ArrowLeftRight, 
   Bot, 
@@ -31,6 +32,8 @@ const navItems = [
   { icon: Spade, label: 'Poker', page: 'Poker' },
   { icon: Landmark, label: 'Banking', page: 'Banking' },
   { icon: TrendingUp, label: 'Analytics', page: 'Analytics' },
+  { icon: Shield, label: 'Vault', page: 'SecureVaultPage' },
+  { icon: Wallet, label: 'Wallet', page: 'Wallet'},
 ];
 
 const secondaryNavItems = [
@@ -39,6 +42,8 @@ const secondaryNavItems = [
   { icon: 'CreditCard', label: 'Card', page: 'VirtualCard' },
   { icon: 'BookOpen', label: 'Learn', page: 'Education' },
   { icon: 'Heart', label: 'Legacy', page: 'Legacy' },
+  { icon: 'Shield', label: 'Vault', page: 'SecureVaultPage'},
+  { icon: 'Wallet', label: 'Wallet', page: 'Wallet'},
 ];
 
 export default function Layout({ children }) {
@@ -49,7 +54,7 @@ export default function Layout({ children }) {
   const contentRef = useRef(null);
 
   // Root pages that show logo instead of back button
-  const rootPages = ['Portfolio', 'Swap', 'TradingBots', 'CloudMining', 'DApps', 'Casinos', 'Poker', 'Banking', 'Analytics', 'AIHub', 'NFTs', 'VirtualCard', 'Education', 'Legacy'];
+  const rootPages = ['SecureVaultPage', 'Wallet', 'Portfolio', 'Swap', 'TradingBots', 'CloudMining', 'DApps', 'Casinos', 'Poker', 'Banking', 'Analytics', 'AIHub', 'NFTs', 'VirtualCard', 'Education', 'Legacy'];
   const isRootPage = rootPages.some(page => currentPath.includes(page));
 
   // State preservation
