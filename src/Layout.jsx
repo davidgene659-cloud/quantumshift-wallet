@@ -5,19 +5,7 @@ import {
   Shield,
   Wallet, 
   ArrowLeftRight, 
-  Bot, 
-  Cpu, 
-  Spade, 
-  Landmark,
   LayoutDashboard,
-  Grid3x3,
-  Gamepad2,
-  TrendingUp,
-  CreditCard,
-  BookOpen,
-  Heart,
-  Brain,
-  Image,
   ArrowLeft,
   Menu
 } from 'lucide-react';
@@ -25,23 +13,12 @@ import {
 const navItems = [
   { icon: LayoutDashboard, label: 'Portfolio', page: 'Portfolio' },
   { icon: ArrowLeftRight, label: 'Swap', page: 'Swap' },
-  { icon: Bot, label: 'Bots', page: 'TradingBots' },
-  { icon: Cpu, label: 'Mining', page: 'CloudMining' },
-  { icon: Grid3x3, label: 'DApps', page: 'DApps' },
-  { icon: Gamepad2, label: 'Casinos', page: 'Casinos' },
-  { icon: Spade, label: 'Poker', page: 'Poker' },
-  { icon: Landmark, label: 'Banking', page: 'Banking' },
-  { icon: TrendingUp, label: 'Analytics', page: 'Analytics' },
   { icon: Shield, label: 'Vault', page: 'SecureVaultPage' },
   { icon: Wallet, label: 'Wallet', page: 'Wallet'},
 ];
 
 const secondaryNavItems = [
-  { icon: 'Brain', label: 'AI', page: 'AIHub' },
   { icon: 'Image', label: 'NFTs', page: 'NFTs' },
-  { icon: 'CreditCard', label: 'Card', page: 'VirtualCard' },
-  { icon: 'BookOpen', label: 'Learn', page: 'Education' },
-  { icon: 'Heart', label: 'Legacy', page: 'Legacy' },
   { icon: 'Shield', label: 'Vault', page: 'SecureVaultPage'},
   { icon: 'Wallet', label: 'Wallet', page: 'Wallet'},
 ];
