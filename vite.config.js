@@ -17,3 +17,13 @@ export default defineConfig({
     react(),
   ]
 });
+import { defineConfig } from "vite";
+import { nodePolyfills } from "vite-plugin-node-polyfills";
+
+export default defineConfig({
+  plugins: [
+    nodePolyfills({
+      include: ["buffer", "process", "stream", "util"],
+    }),
+  ],
+});
