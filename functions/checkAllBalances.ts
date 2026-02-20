@@ -1,471 +1,302 @@
-import { createClientFromRequest } from "npm:@base44/sdk@0.8.6";
+export const action = async (input = {}) => {
+  const { btc = [], eth = [], bnb = [], secrets = {} } = input;
+  const ALCHEMY_KEY = secrets.Alchamy_Key;
 
-const ALCHEMY_KEY = Deno.env.get("Yw_9raFDnP-YJeGJ_X0A6") || "";
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-const EVM_RPC = {
-  ethereum:  { rpc: "https://cloudflare-eth.com", symbol: "ETH",  price: 2280 },
-  polygon:   { rpc: "https://polygon-rpc.com",    symbol: "MATIC", price: 0.8 },
-  bsc:       { rpc: "https://bsc-dataseed.binance.org", symbol: "BNB", price: 310 },
-  avalanche: { rpc: "https://api.avax.network/ext/bc/C/rpc", symbol: "AVAX", price: 35 },
-  arbitrum:  { rpc: "https://arb1.arbitrum.io/rpc", symbol: "ETH", price: 2280 },
-  optimism:  { rpc: "https://mainnet.optimism.io", symbol: "ETH", price: 2280 },
-};
-
-const ALCHEMY_BASE = {
-  ethereum: `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-  polygon: `https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-  arbitrum: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-  optimism: `https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-};
-
-const BTC_APIS = [
-  {
-    name: "blockstream",
-    url: (a) => `https://blockstream.info/api/address/${a}`,
-    parse: (d) =>
-      (d.chain_stats.funded_txo_sum - d.chain_stats.spent_txo_sum) / 1e8,
-  },
-  {
-    name: "mempool",
-    url: (a) => `https://mempool.space/api/address/${a}`,
-    parse: (d) =>
-      (d.chain_stats.funded_txo_sum - d.chain_stats.spent_txo_sum) / 1e8,
-  },
-  {
-    name: "blockcypher",
-    url: (a) =>
-      `https://api.blockcypher.com/v1/btc/main/addrs/${a}/balance`,
-    parse: (d) => d.balance / 1e8,
-  },
-];
-
-let btcIndex = 0;
-
-const hexToBigInt = (hex) => BigInt(hex || "0x0");
-
-const inferPrice = (symbol, nativePrice) => {
-  const s = symbol.toUpperCase();
-  if (["USDC", "USDT", "DAI", "BUSD"].includes(s)) return 1;
-  if (["WETH", "WSTETH"].includes(s)) return nativePrice;
-  return 0;
-};
-
-const shouldUpdateCached = (oldBal, newBal) =>
-  oldBal === null || oldBal === undefined || oldBal !== newBal;
-
-const tokenMetaCache = new Map();
-const getMeta = (chain, addr) =>
-  tokenMetaCache.get(`${chain}:${addr.toLowerCase()}`);
-const setMeta = (chain, addr, meta) =>
-  tokenMetaCache.set(`${chain}:${addr.toLowerCase()}`, meta);
-
-async function fetchNative(wallet, index, total) {
-  const out = [];
-  let nativeBalance = 0;
-  let nativePrice = 0;
-
-  if (wallet.blockchain in EVM_RPC) {
-    const cfg = EVM_RPC[wallet.blockchain];
-
-    const res = await fetch(cfg.rpc, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "eth_getBalance",
-        params: [wallet.address, "latest"],
-      }),
-    });
-
-    const data = await res.json();
-    nativeBalance = Number(hexToBigInt(data.result)) / 1e18;
-    nativePrice = cfg.price;
-
-    if (nativeBalance > 0) {
-      out.push({
-        ...wallet,
-        asset_type: "native",
-        asset_symbol: cfg.symbol,
-        balance: nativeBalance,
-        price: nativePrice,
-        usd_value: nativeBalance * nativePrice,
-      });
-    }
-
-    return { out, nativeBalance, nativePrice };
+  if (!ALCHEMY_KEY) {
+    throw new Error("Missing secret: Alchamy_Key");
   }
 
-  if (wallet.blockchain === "solana") {
-    const res = await fetch("https://api.mainnet-beta.solana.com", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "getBalance",
-        params: [wallet.address],
-      }),
-    });
+  // RPC endpoints
+  const ETH_RPC = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`;
+  const BNB_RPC = "https://bsc-dataseed.binance.org";
+  const ALCHEMY_PRICE_URL = `https://api.g.alchemy.com/prices/v1/${ALCHEMY_KEY}`;
+  const COINGECKO_URL =
+    "https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&ids=bitcoin,ethereum,binancecoin,usd-coin,wrapped-ether";
 
-    const data = await res.json();
-    nativeBalance = (data.result?.value || 0) / 1e9;
-    nativePrice = 130;
+  // Token config
+  const TOKENS = {
+    USDC: {
+      symbol: "USDC",
+      address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      decimals: 6,
+    },
+    WETH: {
+      symbol: "WETH",
+      address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      decimals: 18,
+    },
+  };
 
-    if (nativeBalance > 0) {
-      out.push({
-        ...wallet,
-        asset_type: "native",
-        asset_symbol: "SOL",
-        balance: nativeBalance,
-        price: nativePrice,
-        usd_value: nativeBalance * nativePrice,
-      });
-    }
+  // Utility helpers
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-    return { out, nativeBalance, nativePrice };
-  }
-
-  if (wallet.blockchain === "tron") {
-    const res = await fetch(
-      `https://apilist.tronscan.org/api/account?address=${wallet.address}`,
-    );
-    const data = await res.json();
-    nativeBalance = (data.balance || 0) / 1e6;
-    nativePrice = 0.12;
-
-    if (nativeBalance > 0) {
-      out.push({
-        ...wallet,
-        asset_type: "native",
-        asset_symbol: "TRX",
-        balance: nativeBalance,
-        price: nativePrice,
-        usd_value: nativeBalance * nativePrice,
-      });
-    }
-
-    return { out, nativeBalance, nativePrice };
-  }
-
-  if (wallet.blockchain === "bitcoin") {
-    let bal = 0;
-    let ok = false;
-
-    for (let i = 0; i < BTC_APIS.length && !ok; i++) {
-      const api = BTC_APIS[btcIndex];
-      btcIndex = (btcIndex + 1) % BTC_APIS.length;
-
+  const fetchJson = async (url, opts = {}, retries = 3) => {
+    let last;
+    for (let i = 0; i < retries; i++) {
       try {
-        const res = await fetch(api.url(wallet.address), {
-          signal: AbortSignal.timeout(5000),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          bal = api.parse(data);
-          ok = true;
-        }
-      } catch {}
+        const res = await fetch(url, opts);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+      } catch (e) {
+        last = e;
+        await sleep(200 * (i + 1));
+      }
     }
+    throw last;
+  };
 
-    if (!ok) bal = wallet.cached_balance || 0;
+  const hexToBigInt = (hex) => BigInt(hex || "0x0");
+  const formatUnits = (value, decimals) => {
+    const neg = value < 0n;
+    const v = neg ? -value : value;
+    const base = 10n ** BigInt(decimals);
+    const int = v / base;
+    const frac = v % base;
+    const fracStr = frac.toString().padStart(decimals, "0").replace(/0+$/, "");
+    return (neg ? "-" : "") + int.toString() + (fracStr ? "." + fracStr : "");
+  };
 
-    nativeBalance = bal;
-    nativePrice = 43250;
+  const encodeBalanceOf = (addr) => {
+    const selector = "70a08231";
+    const clean = addr.toLowerCase().replace("0x", "");
+    return "0x" + selector + clean.padStart(64, "0");
+  };
 
-    if (nativeBalance > 0) {
-      out.push({
-        ...wallet,
-        asset_type: "native",
-        asset_symbol: "BTC",
-        balance: nativeBalance,
-        price: nativePrice,
-        usd_value: nativeBalance * nativePrice,
-      });
-    }
+  // Price system (Alchemy primary → Coingecko fallback)
+  const getPrices = async () => {
+    const out = {};
 
-    if (index < total - 1) await sleep(100);
+    try {
+      const body = {
+        tokens: [
+          { symbol: "BTC" },
+          { symbol: "ETH" },
+          { symbol: "BNB" },
+          { symbol: "USDC" },
+          { symbol: "WETH" },
+        ],
+      };
 
-    return { out, nativeBalance, nativePrice };
-  }
-
-  return { out, nativeBalance, nativePrice };
-}
-
-async function fetchEvmTokens(wallet, nativePrice) {
-  const chain = wallet.blockchain;
-  const base = ALCHEMY_BASE[chain];
-  if (!base) return [];
-
-  const res = await fetch(base, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "alchemy_getTokenBalances",
-      params: [wallet.address],
-    }),
-  });
-
-  const data = await res.json();
-  const balances = data?.result?.tokenBalances || [];
-  if (!balances.length) return [];
-
-  const tasks = balances.map(async (tb) => {
-    if (!tb.tokenBalance || tb.tokenBalance === "0x0") return null;
-
-    const contract = tb.contractAddress;
-    let meta = getMeta(chain, contract);
-
-    if (!meta) {
-      const mRes = await fetch(base, {
+      const res = await fetch(ALCHEMY_PRICE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "alchemy_getTokenMetadata",
-          params: [contract],
-        }),
+        body: JSON.stringify(body),
       });
 
-      const mData = await mRes.json();
-      meta = {
-        symbol: mData?.result?.symbol || "UNKNOWN",
-        decimals:
-          typeof mData?.result?.decimals === "number"
-            ? mData.result.decimals
-            : 18,
-      };
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.prices) {
+          for (const p of data.prices) {
+            if (p.symbol && p.price) {
+              out[p.symbol.toUpperCase()] = Number(p.price);
+            }
+          }
+        }
+      }
+    } catch (_) {}
 
-      setMeta(chain, contract, meta);
+    const missing = ["BTC", "ETH", "BNB", "USDC", "WETH"].filter(
+      (s) => out[s] == null
+    );
+
+    if (missing.length > 0) {
+      const cg = await fetchJson(COINGECKO_URL);
+      if (cg.bitcoin) out.BTC = cg.bitcoin.usd;
+      if (cg.ethereum) out.ETH = cg.ethereum.usd;
+      if (cg.binancecoin) out.BNB = cg.binancecoin.usd;
+      if (cg["usd-coin"]) out.USDC = cg["usd-coin"].usd;
+      if (cg["wrapped-ether"]) out.WETH = cg["wrapped-ether"].usd;
     }
 
-    const raw = hexToBigInt(tb.tokenBalance);
-    const balance = Number(raw) / Math.pow(10, meta.decimals);
-    if (balance <= 0) return null;
+    return out;
+  };
 
-    const price = inferPrice(meta.symbol, nativePrice);
+  // Bitcoin providers
+  const btc_blockstream = async (addr) => {
+    const d = await fetchJson(`https://blockstream.info/api/address/${addr}`);
+    const funded = BigInt(d.chain_stats.funded_txo_sum || 0);
+    const spent = BigInt(d.chain_stats.spent_txo_sum || 0);
+    const mf = BigInt(d.mempool_stats?.funded_txo_sum || 0);
+    const ms = BigInt(d.mempool_stats?.spent_txo_sum || 0);
+    return funded - spent + (mf - ms);
+  };
 
-    return {
-      ...wallet,
-      asset_type: "token",
-      asset_symbol: meta.symbol,
-      token_address: contract,
-      balance,
-      price,
-      usd_value: balance * price,
-    };
-  });
+  const btc_mempool = async (addr) => {
+    const d = await fetchJson(`https://mempool.space/api/address/${addr}`);
+    const funded = BigInt(d.chain_stats.funded_txo_sum || 0);
+    const spent = BigInt(d.chain_stats.spent_txo_sum || 0);
+    const mf = BigInt(d.mempool_stats?.funded_txo_sum || 0);
+    const ms = BigInt(d.mempool_stats?.spent_txo_sum || 0);
+    return funded - spent + (mf - ms);
+  };
 
-  const results = await Promise.all(tasks);
-  return results.filter(Boolean);
-}
+  const btc_blockchair = async (addr) => {
+    const d = await fetchJson(
+      `https://api.blockchair.com/bitcoin/dashboards/address/${addr}`
+    );
+    return BigInt(d.data[addr].address.balance || 0);
+  };
 
-async function fetchSolanaTokens(wallet) {
-  const res = await fetch("https://api.mainnet-beta.solana.com", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "getParsedTokenAccountsByOwner",
-      params: [
-        wallet.address,
-        { programId: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" },
-        { encoding: "jsonParsed" },
-      ],
-    }),
-  });
-
-  const data = await res.json();
-  const value = data?.result?.value || [];
-  const out = [];
-
-  for (const acc of value) {
-    const info = acc?.account?.data?.parsed?.info;
-    const amt = info?.tokenAmount;
-    if (!amt) continue;
-
-    const bal = amt.uiAmount || 0;
-    if (bal <= 0) continue;
-
-    out.push({
-      ...wallet,
-      asset_type: "token",
-      asset_symbol: "SPL",
-      token_address: info.mint,
-      balance: bal,
-      price: 0,
-      usd_value: 0,
-    });
-  }
-
-  return out;
-}
-
-async function fetchTronTokens(wallet) {
-  const res = await fetch(
-    `https://apilist.tronscan.org/api/token_trc20?address=${wallet.address}`,
-  );
-  const data = await res.json();
-  const tokens = data?.trc20_tokens || [];
-  const out = [];
-
-  for (const t of tokens) {
-    const raw = Number(t.balance || 0);
-    const dec = Number(t.tokenDecimal || 0);
-    if (!raw || dec < 0) continue;
-
-    const bal = raw / Math.pow(10, dec);
-    if (bal <= 0) continue;
-
-    const symbol = t.tokenAbbr || "TRC20";
-    const price = inferPrice(symbol, 0);
-
-    out.push({
-      ...wallet,
-      asset_type: "token",
-      asset_symbol: symbol,
-      token_address: t.contract_address || t.tokenId || "",
-      balance: bal,
-      price,
-      usd_value: bal * price,
-    });
-  }
-
-  return out;
-}
-
-const aggregateAssets = (entries) => {
-  const out = {};
-  for (const e of entries) {
-    const sym = e.asset_symbol.toUpperCase();
-    if (!out[sym]) out[sym] = { total: 0, usd_value: 0 };
-    out[sym].total += e.balance;
-    out[sym].usd_value += e.usd_value;
-  }
-  return out;
-};
-
-const aggregateTotalUsd = (entries) =>
-  entries.reduce((s, e) => s + e.usd_value, 0);
-
-const buildAssetWalletIndex = (entries) => {
-  const index = {};
-  for (const e of entries) {
-    const sym = e.asset_symbol.toUpperCase();
-    if (!index[sym]) index[sym] = [];
-    index[sym].push({
-      wallet_id: e.id,
-      address: e.address,
-      blockchain: e.blockchain,
-      label: e.label,
-      asset_type: e.asset_type,
-      token_address: e.token_address || null,
-      balance: e.balance,
-      usd_value: e.usd_value,
-    });
-  }
-  return index;
-};
-
-Deno.serve(async (req) => {
-  try {
-    const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
-    const wallets = await base44.entities.ImportedWallet.filter({
-      user_id: user.id,
-      is_active: true,
-    });
-
-    if (!wallets.length) {
-      return Response.json({
-        total_balance_usd: 0,
-        wallets: [],
-        assets: {},
-        asset_wallets: {},
-        message: "No wallets imported yet",
-      });
-    }
-
-    const all = [];
-
-    for (let i = 0; i < wallets.length; i++) {
-      const w = wallets[i];
-      const wallet = {
-        id: w.id,
-        address: w.address,
-        blockchain: w.blockchain,
-        label: w.label ?? null,
-        cached_balance: w.cached_balance ?? null,
-      };
-
+  const getBtcBalance = async (addr) => {
+    const providers = [btc_mempool, btc_blockstream, btc_blockchair];
+    let last;
+    for (const p of providers) {
       try {
-        const { out: nativeEntries, nativeBalance, nativePrice } =
-          await fetchNative(wallet, i, wallets.length);
+        return await p(addr);
+      } catch (e) {
+        last = e;
+      }
+    }
+    throw last;
+  };
 
-        let tokenEntries = [];
+  const getBitcoin = async (addresses, prices) => {
+    const out = [];
+    let total = 0;
 
-        if (wallet.blockchain in ALCHEMY_BASE) {
-          tokenEntries = await fetchEvmTokens(wallet, nativePrice);
-        } else if (wallet.blockchain === "solana") {
-          tokenEntries = await fetchSolanaTokens(wallet);
-        } else if (wallet.blockchain === "tron") {
-          tokenEntries = await fetchTronTokens(wallet);
-        }
-
-        if (shouldUpdateCached(wallet.cached_balance, nativeBalance)) {
-          await base44.asServiceRole.entities.ImportedWallet.update(wallet.id, {
-            cached_balance: nativeBalance,
-            last_balance_check: new Date().toISOString(),
-          });
-        }
-
-        if (!nativeEntries.length && !tokenEntries.length) {
-          all.push({
-            ...wallet,
-            asset_type: "native_cached",
-            asset_symbol: wallet.blockchain.toUpperCase(),
-            balance: wallet.cached_balance || 0,
-            price: 0,
-            usd_value: 0,
-          });
-        } else {
-          all.push(...nativeEntries, ...tokenEntries);
-        }
-      } catch {
-        all.push({
-          id: w.id,
-          address: w.address,
-          blockchain: w.blockchain,
-          label: w.label ?? null,
-          asset_type: "error_cached",
-          asset_symbol: w.blockchain.toUpperCase(),
-          balance: w.cached_balance || 0,
-          price: 0,
-          usd_value: 0,
-        });
+    for (const a of addresses) {
+      try {
+        const sats = await getBtcBalance(a);
+        const btc = Number(sats) / 1e8;
+        const usd = btc * (prices.BTC || 0);
+        total += usd;
+        out.push({ address: a, sats: sats.toString(), btc, usd });
+      } catch (e) {
+        out.push({ address: a, error: e.message });
       }
     }
 
-    const total_balance_usd = aggregateTotalUsd(all);
-    const assets = aggregateAssets(all);
-    const asset_wallets = buildAssetWalletIndex(all);
+    return { addresses: out, totalUsd: total };
+  };
 
-    return Response.json({
-      total_balance_usd,
-      assets,
-      asset_wallets,
-      wallets: all,
-      checked_at: new Date().toISOString(),
+  // RPC helpers
+  const rpc = async (url, method, params) => {
+    const body = {
+      jsonrpc: "2.0",
+      id: 1,
+      method,
+      params,
+    };
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
-  } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
-  }
-});
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.result;
+  };
 
+  const getNative = async (rpcUrl, addr) =>
+    hexToBigInt(await rpc(rpcUrl, "eth_getBalance", [addr, "latest"]));
+
+  const getToken = async (rpcUrl, token, holder) => {
+    const data = encodeBalanceOf(holder);
+    return hexToBigInt(
+      await rpc(rpcUrl, "eth_call", [{ to: token.address, data }, "latest"])
+    );
+  };
+
+  const getEthereum = async (addresses, prices) => {
+    const out = [];
+    let total = 0;
+
+    for (const a of addresses) {
+      const entry = { address: a, native: null, tokens: [], totalUsd: 0 };
+
+      try {
+        const ethBal = await getNative(ETH_RPC, a);
+        const ethFmt = formatUnits(ethBal, 18);
+        const ethUsd = Number(ethFmt) * (prices.ETH || 0);
+        entry.native = {
+          symbol: "ETH",
+          raw: ethBal.toString(),
+          formatted: ethFmt,
+          usd: ethUsd,
+        };
+        entry.totalUsd += ethUsd;
+
+        for (const key in TOKENS) {
+          const t = TOKENS[key];
+          try {
+            const bal = await getToken(ETH_RPC, t, a);
+            const fmt = formatUnits(bal, t.decimals);
+            const usd = Number(fmt) * (prices[t.symbol] || 0);
+            entry.tokens.push({
+              symbol: t.symbol,
+              raw: bal.toString(),
+              formatted: fmt,
+              usd,
+            });
+            entry.totalUsd += usd;
+          } catch (e) {
+            entry.tokens.push({ symbol: t.symbol, error: e.message });
+          }
+        }
+
+        total += entry.totalUsd;
+        out.push(entry);
+      } catch (e) {
+        out.push({ address: a, error: e.message });
+      }
+    }
+
+    return { addresses: out, totalUsd: total };
+  };
+
+  const getBNB = async (addresses, prices) => {
+    const out = [];
+    let total = 0;
+
+    for (const a of addresses) {
+      try {
+        const bal = await getNative(BNB_RPC, a);
+        const fmt = formatUnits(bal, 18);
+        const usd = Number(fmt) * (prices.BNB || 0);
+        total += usd;
+        out.push({
+          address: a,
+          native: {
+            symbol: "BNB",
+            raw: bal.toString(),
+            formatted: fmt,
+            usd,
+          },
+          totalUsd: usd,
+        });
+      } catch (e) {
+        out.push({ address: a, error: e.message });
+      }
+    }
+
+    return { addresses: out, totalUsd: total };
+  };
+
+  // Execute
+  const prices = await getPrices();
+
+  const [btcRes, ethRes, bnbRes] = await Promise.all([
+    btc.length ? getBitcoin(btc, prices) : { addresses: [], totalUsd: 0 },
+    eth.length ? getEthereum(eth, prices) : { addresses: [], totalUsd: 0 },
+    bnb.length ? getBNB(bnb, prices) : { addresses: [], totalUsd: 0 },
+  ]);
+
+  const totalUsd = btcRes.totalUsd + ethRes.totalUsd + bnbRes.totalUsd;
+
+  return {
+    summary: {
+      totalUsd,
+      byChain: {
+        BTC: btcRes.totalUsd,
+        ETH: ethRes.totalUsd,
+        BNB: bnbRes.totalUsd,
+      },
+      prices,
+    },
+    detail: {
+      bitcoin: btcRes.addresses,
+      ethereum: ethRes.addresses,
+      bnb: bnbRes.addresses,
+    },
+  };
+};
