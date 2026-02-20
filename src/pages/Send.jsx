@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Send as SendIcon, Scan, CheckCircle2, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -49,13 +49,13 @@ function validateAmount(amount, balance) {
 // ── Chain → blockchain param mapping ─────────────────────────────────────────
 
 const BLOCKCHAIN_MAP = {
-  ETH:  'ethereum',
+  ETH:   'ethereum',
   MATIC: 'polygon',
-  BNB:  'bsc',
-  BTC:  'bitcoin',
-  SOL:  'solana',
-  USDC: 'ethereum', // default; override if your TokenSelector supports multi-chain USDC
-  USDT: 'ethereum', // default; override if your TokenSelector supports multi-chain USDT
+  BNB:   'bsc',
+  BTC:   'bitcoin',
+  SOL:   'solana',
+  USDC:  'ethereum',
+  USDT:  'ethereum',
 };
 
 // ERC-20 contract addresses (mainnet)
@@ -64,14 +64,28 @@ const ERC20_CONTRACTS = {
   USDT: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
 };
 
-// ── Fee label per chain ───────────────────────────────────────────────────────
+// ── Wallet helpers ────────────────────────────────────────────────────────────
 
-function getFeeLabel(blockchain) {
-  switch (blockchain) {
-    case 'bitcoin': return 'BTC';
-    case 'solana':  return 'SOL';
-    default:        return 'ETH'; // covers ethereum, polygon (MATIC), bsc (BNB)
+function getSavedWallets() {
+  try {
+    return JSON.parse(localStorage.getItem('imported_wallets') || '[]');
+  } catch {
+    return [];
   }
+}
+
+/**
+ * Returns the best wallet id for a given token symbol.
+ * Prefers the wallet with the largest balance for that chain.
+ */
+function getBestWalletId(tokenSymbol) {
+  const blockchain = BLOCKCHAIN_MAP[tokenSymbol];
+  if (!blockchain) return '';
+  const wallets = getSavedWallets();
+  const matching = wallets
+    .filter(w => w.blockchain === blockchain)
+    .sort((a, b) => (b.balance || 0) - (a.balance || 0));
+  return matching[0]?.id ?? '';
 }
 
 // ── Gas option config (EVM only) ──────────────────────────────────────────────
@@ -94,6 +108,16 @@ export default function Send() {
   const [error,       setError]       = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
+  // Derived from selected token — auto-selects the best wallet for that chain
+  const [walletId, setWalletId] = useState(() => getBestWalletId('ETH'));
+
+  // Re-derive walletId whenever token changes
+  useEffect(() => {
+    setWalletId(getBestWalletId(token));
+    setError(null);
+    setAddress('');
+  }, [token]);
+
   const selectedToken = tokens.find(t => t.symbol === token);
   const usdValue = amount && selectedToken
     ? (parseFloat(amount) * selectedToken.price).toFixed(2)
@@ -103,17 +127,15 @@ export default function Send() {
   const tokenContract = ERC20_CONTRACTS[token];
   const isEVM         = ['ethereum', 'polygon', 'bsc'].includes(blockchain);
   const balance       = selectedToken?.balance ?? 0;
-  const feeLabel      = getFeeLabel(blockchain);
 
-  // FIX: pull walletId from context/store rather than leaving it blank.
-  // Replace this line with your actual wallet context hook, e.g.:
-  //   const { activeWallet } = useWalletContext();
-  //   const walletId = activeWallet?.id ?? '';
-  const walletId = ''; // TODO: wire up from wallet context
+  // Fee label per chain
+  const feeLabel = blockchain === 'bitcoin' ? 'BTC'
+                 : blockchain === 'solana'  ? 'SOL'
+                 : 'ETH';
 
   const addressError = address ? validateAddress(address, blockchain) : null;
   const amountError  = amount  ? validateAmount(amount, balance)       : null;
-  const canSend      = !addressError && !amountError && !isSending && !!walletId;
+  const canSend      = !addressError && !amountError && !isSending && !!walletId && !!address && !!amount;
 
   // ── Broadcast ──────────────────────────────────────────────────────────────
 
@@ -129,15 +151,14 @@ export default function Send() {
         to_address: address.trim(),
         amount:     amount.trim(),
         blockchain,
-        // FIX: only send gas_option for EVM chains; Bitcoin uses sat/vbyte
-        // and Solana uses a fixed fee — neither accepts an EVM gas option.
+        // Only send gas_option for EVM; BTC uses live sat/vbyte, SOL uses fixed fee
         ...(isEVM && { gas_option: gasOption }),
       };
 
       if (tokenContract) payload.token_contract = tokenContract;
 
       const res = await fetch('/api/signTransaction', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(payload),
@@ -217,11 +238,10 @@ export default function Send() {
                 {txResult.amount} {token} → {txResult.to.slice(0, 8)}…{txResult.to.slice(-6)}
               </p>
 
-              {/* FIX: use generic `fee` field from the API response and label it
-                  correctly per chain instead of always showing `fee_eth`. */}
+              {/* fee + fee_unit come from the backend — correct per chain */}
               {txResult.fee && (
                 <p className="text-white/40 text-sm">
-                  Fee: {txResult.fee} {feeLabel}
+                  Fee: {txResult.fee} {txResult.fee_unit ?? feeLabel}
                 </p>
               )}
 
@@ -274,7 +294,7 @@ export default function Send() {
                   <span className="text-white/50">Network</span>
                   <span className="text-white capitalize">{blockchain}</span>
                 </div>
-                {/* FIX: only show speed row for EVM chains */}
+                {/* Only show speed row for EVM — BTC/SOL don't use this option */}
                 {isEVM && (
                   <div className="flex justify-between">
                     <span className="text-white/50">Speed</span>
@@ -331,13 +351,28 @@ export default function Send() {
                   onSelect={(t) => {
                     setToken(t);
                     setError(null);
-                    // Reset address when switching chains so stale validation clears
                     setAddress('');
                   }}
                 />
                 <span className="text-white/50 text-sm">Balance: {balance.toFixed(6)} {token}</span>
               </div>
             </div>
+
+            {/* Active wallet indicator */}
+            {walletId ? (
+              <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-white/50">
+                {(() => {
+                  const w = getSavedWallets().find(x => x.id === walletId);
+                  return w
+                    ? `Wallet: ${w.label || w.address.slice(0, 10) + '…' + w.address.slice(-6)}`
+                    : `Wallet ID: ${walletId}`;
+                })()}
+              </div>
+            ) : (
+              <p className="text-amber-400/70 text-xs text-center">
+                ⚠️ No {blockchain} wallet found. Import one first.
+              </p>
+            )}
 
             {/* Amount */}
             <div>
@@ -425,7 +460,6 @@ export default function Send() {
                 {blockchain === 'bitcoin' && (
                   <div className="flex justify-between">
                     <span className="text-white/50">Fee Rate</span>
-                    {/* FIX: Bitcoin fees are paid in BTC (sat/vbyte), not ETH */}
                     <span className="text-white/80">Live mempool rate (sat/vbyte) · paid in BTC</span>
                   </div>
                 )}
@@ -445,7 +479,7 @@ export default function Send() {
             {/* Send button */}
             <Button
               onClick={handleSendClick}
-              disabled={!canSend || !!amountError || !!addressError}
+              disabled={!canSend}
               className="w-full h-14 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-lg rounded-2xl transition-all"
             >
               {isSending
@@ -453,12 +487,6 @@ export default function Send() {
                 : <><SendIcon className="w-5 h-5 mr-2" /> Review & Send</>
               }
             </Button>
-
-            {!walletId && (
-              <p className="text-amber-400/70 text-xs text-center">
-                ⚠️ No wallet selected. Connect a wallet to send.
-              </p>
-            )}
 
           </div>
         </motion.div>
