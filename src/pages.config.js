@@ -88,7 +88,6 @@ export const PAGES = {
     "NFTs": NFTs,
     "Poker": Poker,
     "Portfolio": Portfolio,
-    "Portfolio": Portfolio,
     "Privacy": Privacy,
     "Receive": Receive,
     "SecureVaultPage": SecureVaultPage,
