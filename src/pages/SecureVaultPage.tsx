@@ -439,9 +439,9 @@ export default function SecureVaultPage() {
       }
       if (chain === "ETH") {
         const [nonce, chainId, gasLimit] = await Promise.all([
-          ethFetchNonce(activeWallet.address),
+          ethFetchNonce(activeWallet?.address ?? ""),
           ethFetchChainId(),
-          ethEstimateGasLimit(activeWallet.address, sendTo, "0x" + Math.floor(amount * 1e18).toString(16)),
+          ethEstimateGasLimit(activeWallet?.address ?? "", sendTo, "0x" + Math.floor(amount * 1e18).toString(16)),
         ]);
         const gas = fees[sendTier];
         setSendTxid(`[ETH_SIGN_READY] nonce:${nonce} chainId:${chainId} gasLimit:${gasLimit} maxFee:${gas.maxFee.toFixed(2)}gwei`);
@@ -722,7 +722,7 @@ export default function SecureVaultPage() {
                         <h1 className="text-xl font-bold text-neutral-100">{activeWallet.label}</h1>
                         <Badge variant="outline" className={`text-[9px] border ${CHAIN_BADGE[chain]}`}>{chain}</Badge>
                       </div>
-                      <div className="text-xs font-mono text-neutral-600 truncate mb-2">{activeWallet.address}</div>
+                      <div className="text-xs font-mono text-neutral-600 truncate mb-2">{activeWallet?.address ?? ""}</div>
                       <div className="flex gap-2 flex-wrap">
                         {hasVault && <Badge className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[9px]">🔐 VAULT</Badge>}
                         {isUnlocked && <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px]">🔓 UNLOCKED</Badge>}
@@ -1146,13 +1146,13 @@ export default function SecureVaultPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-2">
-            <QRCode value={activeWallet.address} size={180} />
+            <QRCode value={activeWallet?.address ?? ''} size={180} />
             <div className="w-full bg-neutral-800/50 rounded-lg border border-neutral-700/40 px-3 py-2.5">
               <div className="text-[9px] text-neutral-600 mb-1 tracking-widest">YOUR {chain} ADDRESS</div>
-              <div className="font-mono text-xs text-neutral-300 break-all">{activeWallet.address}</div>
+              <div className="font-mono text-xs text-neutral-300 break-all">{activeWallet?.address ?? ""}</div>
             </div>
             <Button className="w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs border border-neutral-700"
-              onClick={() => { navigator.clipboard.writeText(activeWallet.address); showToast("📋 Address copied"); }}>
+              onClick={() => { navigator.clipboard.writeText(activeWallet?.address ?? ""); showToast("📋 Address copied"); }}>
               <Copy className="h-3.5 w-3.5 mr-2" />Copy Address
             </Button>
           </div>
