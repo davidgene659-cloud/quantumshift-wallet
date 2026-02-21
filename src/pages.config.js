@@ -8,8 +8,7 @@
  * This controls which page is the landing page (shown when users visit the app).
  * 
  * Example file structure:
- *   
- *   import SecureVaultPage from './pages/SecureVaultPage'; 
+ * 
  *   import HomePage from './pages/HomePage';
  *   import Dashboard from './pages/Dashboard';
  *   import Settings from './pages/Settings';
@@ -48,7 +47,6 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import SecureVaultPage from './pages/SecureVaultPage'; 
 import AIHub from './pages/AIHub';
 import AdvancedAnalytics from './pages/AdvancedAnalytics';
 import Analytics from './pages/Analytics';
@@ -63,18 +61,20 @@ import Marketing from './pages/Marketing';
 import NFTs from './pages/NFTs';
 import Poker from './pages/Poker';
 import Portfolio from './pages/Portfolio';
+import Portfolio from './pages/Portfolio';
 import Privacy from './pages/Privacy';
 import Receive from './pages/Receive';
+import SecureVaultPage from './pages/SecureVaultPage';
 import Send from './pages/Send';
 import Settings from './pages/Settings';
 import Swap from './pages/Swap';
 import TradingBots from './pages/TradingBots';
 import VirtualCard from './pages/VirtualCard';
+import wallet from './pages/wallet';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "SecureVaultPage": SecureVaultPage,
     "AIHub": AIHub,
     "AdvancedAnalytics": AdvancedAnalytics,
     "Analytics": Analytics,
@@ -89,18 +89,20 @@ export const PAGES = {
     "NFTs": NFTs,
     "Poker": Poker,
     "Portfolio": Portfolio,
+    "Portfolio": Portfolio,
     "Privacy": Privacy,
     "Receive": Receive,
+    "SecureVaultPage": SecureVaultPage,
     "Send": Send,
     "Settings": Settings,
     "Swap": Swap,
     "TradingBots": TradingBots,
     "VirtualCard": VirtualCard,
-     
+    "wallet": wallet,
 }
 
 export const pagesConfig = {
-    mainPage: "Portfolio",
+    mainPage: "DApps",
     Pages: PAGES,
     Layout: __Layout,
 };
