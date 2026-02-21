@@ -70,7 +70,7 @@ import Settings from './pages/Settings';
 import Swap from './pages/Swap';
 import TradingBots from './pages/TradingBots';
 import VirtualCard from './pages/VirtualCard';
-import wallet from './pages/wallet';
+import Wallet from './pages/Wallet';
 import __Layout from './Layout.jsx';
 
 
@@ -98,7 +98,7 @@ export const PAGES = {
     "Swap": Swap,
     "TradingBots": TradingBots,
     "VirtualCard": VirtualCard,
-    "wallet": wallet,
+    "Wallet": Wallet,
 }
 
 export const pagesConfig = {
