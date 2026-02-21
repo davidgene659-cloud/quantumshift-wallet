@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import base44 from 'vite-plugin-base44'
+import base44 from '@base44/vite-plugin'
 import path from 'path'
 
 export default defineConfig({
