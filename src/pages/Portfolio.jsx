@@ -10,11 +10,9 @@ import { createPageUrl } from '@/utils';
 import QuickActions from '@/components/wallet/QuickActions';
 import TokenCard from '@/components/wallet/TokenCard';
 import { PrivateKeyImportDialog } from '@/components/wallet/PrivateKeyImport';
-import PortfolioShield from '@/components/portfolio/PortfolioShield';
-import { Download, Gift, BarChart3 } from 'lucide-react';
+import { Download, BarChart3 } from 'lucide-react';
 import WalletSweeper from '@/components/wallet/WalletSweeper';
 import CrossChainExecutor from '@/components/crosschain/CrossChainExecutor';
-
 
 const tokenPrices = {
   BTC: { price: 43250, change24h: 2.34 },
@@ -41,14 +39,11 @@ export default function Portfolio() {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  // Remove simulated wallet data entirely
-
-  const { data: allWalletBalances, refetch: refetchBalances, error: balanceError } = useQuery({
+  const { data: allWalletBalances, refetch: refetchBalances } = useQuery({
     queryKey: ['allWalletBalances', user?.id],
     queryFn: async () => {
       if (!user?.id) return { wallets: [], total_balance_usd: 0 };
       const response = await base44.functions.invoke('checkAllBalances', {});
-      console.log('checkAllBalances response:', response.data);
       return response.data;
     },
     enabled: !!user?.id,
@@ -57,20 +52,17 @@ export default function Portfolio() {
     retry: 1
   });
 
-  const { data: allTokenBalances, refetch: refetchTokens, error: tokenError } = useQuery({
+  const { data: allTokenBalances, refetch: refetchTokens } = useQuery({
     queryKey: ['allTokenBalances', user?.id],
     queryFn: async () => {
       if (!user?.id) return { tokens: [], total_usd: 0 };
-      
-      const wallets = await base44.entities.ImportedWallet.filter({ 
+      const wallets = await base44.entities.ImportedWallet.filter({
         user_id: user.id,
-        is_active: true 
+        is_active: true
       });
-
-      const tokenChainWallets = wallets.filter(w => 
+      const tokenChainWallets = wallets.filter(w =>
         ['ethereum', 'polygon', 'bsc', 'solana', 'avalanche', 'arbitrum', 'optimism'].includes(w.blockchain)
       );
-
       const allTokens = [];
       for (const wallet of tokenChainWallets) {
         try {
@@ -85,7 +77,6 @@ export default function Portfolio() {
           console.error('Token fetch failed:', wallet.address);
         }
       }
-
       const totalUsd = allTokens.reduce((sum, t) => sum + (t.usd_value || 0), 0);
       return { tokens: allTokens, total_usd: totalUsd };
     },
@@ -95,26 +86,20 @@ export default function Portfolio() {
     retry: 1
   });
 
-  // Only real wallet balances
   const tokens = [];
 
-  // Add native coin balances from imported wallets
   if (allWalletBalances?.wallets) {
     allWalletBalances.wallets.forEach(wallet => {
-      const symbol = wallet.symbol || 
-                     (wallet.blockchain === 'ethereum' ? 'ETH' : 
-                      wallet.blockchain === 'bitcoin' ? 'BTC' :
-                      wallet.blockchain === 'solana' ? 'SOL' :
-                      wallet.blockchain === 'polygon' ? 'MATIC' :
-                      wallet.blockchain === 'bsc' ? 'BNB' : 'UNKNOWN');
-      
+      const symbol = wallet.symbol ||
+        (wallet.blockchain === 'ethereum' ? 'ETH' :
+         wallet.blockchain === 'bitcoin' ? 'BTC' :
+         wallet.blockchain === 'solana' ? 'SOL' :
+         wallet.blockchain === 'polygon' ? 'MATIC' :
+         wallet.blockchain === 'bsc' ? 'BNB' : 'UNKNOWN');
       const existingIndex = tokens.findIndex(t => t.symbol === symbol);
-      // CRITICAL: Use fallback prices if wallet.price is 0 or missing
       const price = (wallet.price && wallet.price > 0) ? wallet.price : (tokenPrices[symbol]?.price || 0);
-      
       if (existingIndex >= 0) {
         tokens[existingIndex].balance += wallet.balance;
-        // Update price if we have a better one
         if (price > 0 && (!tokens[existingIndex].price || tokens[existingIndex].price === 0)) {
           tokens[existingIndex].price = price;
         }
@@ -123,7 +108,7 @@ export default function Portfolio() {
         tokens.push({
           symbol,
           balance: wallet.balance,
-          price: price,
+          price,
           change24h: tokenPrices[symbol]?.change24h || 0,
           wallets: [wallet]
         });
@@ -131,15 +116,12 @@ export default function Portfolio() {
     });
   }
 
-  // Add ERC-20/BEP-20/SPL token balances
   if (allTokenBalances?.tokens) {
     allTokenBalances.tokens.forEach(token => {
-      const existingIndex = tokens.findIndex(t => 
+      const existingIndex = tokens.findIndex(t =>
         t.symbol === token.symbol && t.contract === token.contract
       );
-      
       const tokenPrice = (token.price && token.price > 0) ? token.price : (tokenPrices[token.symbol]?.price || 0);
-      
       if (existingIndex >= 0) {
         tokens[existingIndex].balance += token.balance;
         if (tokenPrice > 0 && (!tokens[existingIndex].price || tokens[existingIndex].price === 0)) {
@@ -165,13 +147,10 @@ export default function Portfolio() {
 
   const handleRefresh = async () => {
     await Promise.all([refetchBalances(), refetchTokens()]);
-    return new Promise(resolve => {
-      setTimeout(resolve, 500);
-    });
   };
 
   return (
-    <motion.div 
+    <motion.div
       key="portfolio"
       initial={{ opacity: 0, x: 100 }}
       animate={{ opacity: 1, x: 0 }}
@@ -179,86 +158,87 @@ export default function Portfolio() {
       transition={{ type: 'tween', duration: 0.3 }}
       className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 p-4 md:p-6"
     >
-      <PullToRefresh onRefresh={handleRefresh}>
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-        <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center justify-between"
-            >
-              <div>
-                <p className="text-white/50 text-sm select-none">Welcome back,</p>
-                <h1 className="text-2xl font-bold text-white select-none">{user?.full_name || 'Crypto Trader'}</h1>
-              </div>
-              <div className="flex items-center gap-3 select-none">
-                <button 
-                  onClick={() => setShowBalance(!showBalance)}
-                  className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none"
-                  style={{ minWidth: '44px', minHeight: '44px' }}
-                >
-                  {showBalance ? <Eye className="w-5 h-5 text-white/70" /> : <EyeOff className="w-5 h-5 text-white/70" />}
-                </button>
-                <button 
-                  onClick={() => setShowWalletDetails(true)}
-                  className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none"
-                  style={{ minWidth: '44px', minHeight: '44px' }}
-                >
-                  <Info className="w-5 h-5 text-white/70" />
-                </button>
-                <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all relative select-none" style={{ minWidth: '44px', minHeight: '44px' }}>
-                  <Bell className="w-5 h-5 text-white/70" />
-                  <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
-                </button>
-                <button 
-                  onClick={() => setShowCustomizer(true)}
-                  className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none" 
-                  style={{ minWidth: '44px', minHeight: '44px' }}
-                  title="Customize Dashboard"
-                >
-                  <BarChart3 className="w-5 h-5 text-white/70" />
-                </button>
-                <button 
-                  onClick={() => setShowImport(true)}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 transition-all select-none flex items-center gap-2" 
-                  style={{ minHeight: '44px' }}
-                >
-                  <Download className="w-5 h-5 text-white" />
-                  <span className="text-white font-medium text-sm">Import</span>
-                </button>
-                <button 
-                  onClick={async () => {
-                    try {
-                      const response = await base44.functions.invoke('exportWallets', {});
-                      const blob = new Blob([response.data], { type: 'text/csv' });
-                      const url = window.URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `wallet-export-${Date.now()}.csv`;
-                      document.body.appendChild(a);
-                      a.click();
-                      window.URL.revokeObjectURL(url);
-                      a.remove();
-                    } catch (error) {
-                      console.error('Export failed:', error);
-                      alert('Export failed. Please try again.');
-                    }
-                  }}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 transition-all select-none flex items-center gap-2" 
-                  style={{ minHeight: '44px' }}
-                >
-                  <Download className="w-5 h-5 text-white rotate-180" />
-                  <span className="text-white font-medium text-sm">Export</span>
-                </button>
-                <Link to={createPageUrl('Settings')}>
-                  <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all select-none" style={{ minWidth: '44px', minHeight: '44px' }}>
-                    <SettingsIcon className="w-5 h-5 text-white/70" />
-                  </button>
-                </Link>
-                </div>
-            </motion.div>
 
-        {/* Quick Actions */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between"
+        >
+          <div>
+            <p className="text-white/50 text-sm select-none">Welcome back,</p>
+            <h1 className="text-2xl font-bold text-white select-none">{user?.full_name || 'Crypto Trader'}</h1>
+          </div>
+          <div className="flex items-center gap-3 select-none">
+            <button
+              onClick={() => setShowBalance(!showBalance)}
+              className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all"
+              style={{ minWidth: '44px', minHeight: '44px' }}
+            >
+              {showBalance ? <Eye className="w-5 h-5 text-white/70" /> : <EyeOff className="w-5 h-5 text-white/70" />}
+            </button>
+            <button
+              onClick={() => setShowWalletDetails(true)}
+              className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all"
+              style={{ minWidth: '44px', minHeight: '44px' }}
+            >
+              <Info className="w-5 h-5 text-white/70" />
+            </button>
+            <button
+              className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all relative"
+              style={{ minWidth: '44px', minHeight: '44px' }}
+            >
+              <Bell className="w-5 h-5 text-white/70" />
+              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
+            </button>
+            <button
+              onClick={() => setShowCustomizer(true)}
+              className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all"
+              style={{ minWidth: '44px', minHeight: '44px' }}
+              title="Customize Dashboard"
+            >
+              <BarChart3 className="w-5 h-5 text-white/70" />
+            </button>
+            <button
+              onClick={() => setShowImport(true)}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 transition-all flex items-center gap-2"
+              style={{ minHeight: '44px' }}
+            >
+              <Download className="w-5 h-5 text-white" />
+              <span className="text-white font-medium text-sm">Import</span>
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const response = await base44.functions.invoke('exportWallets', {});
+                  const blob = new Blob([response.data], { type: 'text/csv' });
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `wallet-export-${Date.now()}.csv`;
+                  document.body.appendChild(a);
+                  a.click();
+                  window.URL.revokeObjectURL(url);
+                  a.remove();
+                } catch (error) {
+                  console.error('Export failed:', error);
+                  alert('Export failed. Please try again.');
+                }
+              }}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 transition-all flex items-center gap-2"
+              style={{ minHeight: '44px' }}
+            >
+              <Download className="w-5 h-5 text-white rotate-180" />
+              <span className="text-white font-medium text-sm">Export</span>
+            </button>
+            <Link to={createPageUrl('Settings')}>
+              <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all" style={{ minWidth: '44px', minHeight: '44px' }}>
+                <SettingsIcon className="w-5 h-5 text-white/70" />
+              </button>
+            </Link>
+          </div>
+        </motion.div>
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -276,7 +256,6 @@ export default function Portfolio() {
           <QuickActions />
         </motion.div>
 
-        {/* Wallet Sweeper */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -285,7 +264,6 @@ export default function Portfolio() {
           <WalletSweeper />
         </motion.div>
 
-        {/* Cross-Chain Executor */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -294,7 +272,6 @@ export default function Portfolio() {
           <CrossChainExecutor />
         </motion.div>
 
-        {/* Token Holdings */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -316,8 +293,11 @@ export default function Portfolio() {
                 </div>
               </div>
             </div>
-            <button className="text-purple-400 text-sm font-medium hover:text-purple-300 transition-colors">
-              View All
+            <button
+              onClick={handleRefresh}
+              className="text-purple-400 text-sm font-medium hover:text-purple-300 transition-colors"
+            >
+              Refresh
             </button>
           </div>
           {tokens.length > 0 ? (
@@ -348,6 +328,7 @@ export default function Portfolio() {
             </div>
           )}
         </motion.div>
+
       </div>
 
       <PrivateKeyImportDialog
@@ -358,9 +339,6 @@ export default function Portfolio() {
         }}
       />
 
-      <AIChatbot />
-
-      {/* Wallet Details Dialog */}
       <Dialog open={showWalletDetails} onOpenChange={setShowWalletDetails}>
         <DialogContent className="bg-gray-900 border-white/20 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -370,13 +348,6 @@ export default function Portfolio() {
         </DialogContent>
       </Dialog>
 
-      {/* Dashboard Customizer */}
-      <DashboardCustomizer 
-        isOpen={showCustomizer} 
-        onClose={() => setShowCustomizer(false)}
-        userId={user?.id}
-      />
-      </PullToRefresh>
-      </motion.div>
-      );
-      }
+    </motion.div>
+  );
+}
