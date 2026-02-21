@@ -12,11 +12,17 @@ export default defineConfig({
       navigationNotifier: true,
       visualEditAgent: true
     }),
-    react(),
+    react({
+      include: ['**/*.jsx', '**/*.tsx', '**/*.ts']
+    }),
   ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+  },
+  esbuild: {
+    loader: 'tsx',
+    include: /src\/.*\.[jt]sx?$/,
   },
 })

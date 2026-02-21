@@ -23,174 +23,107 @@ const COINGECKO_IDS: Record<string, string> = {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function getAlchemyBalance(blockchain: string, address: string): Promise<number> {
-    const endpoint = ALCHEMY_ENDPOINTS[blockchain];
-    if (!endpoint) return 0;
-    const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            jsonrpc: '2.0', id: 1,
-            method: 'eth_getBalance',
-            params: [address, 'latest']
-        }),
-        signal: AbortSignal.timeout(8000)
-    });
-    const data = await res.json();
-    if (data.result) {
-        return parseInt(data.result, 16) / 1e18;
-    }
-    return 0;
-}
+const BATCH_SIZE = 50;
+const walletBalances: any[] = [];
 
-const btcAPIs = [
-    { name: 'blockstream', url: (addr: string) => `https://blockstream.info/api/address/${addr}`, parse: (d: any) => (d.chain_stats.funded_txo_sum - d.chain_stats.spent_txo_sum) / 1e8 },
-    { name: 'mempool',     url: (addr: string) => `https://mempool.space/api/address/${addr}`,    parse: (d: any) => (d.chain_stats.funded_txo_sum - d.chain_stats.spent_txo_sum) / 1e8 },
-    { name: 'blockcypher', url: (addr: string) => `https://api.blockcypher.com/v1/btc/main/addrs/${addr}/balance`, parse: (d: any) => d.balance / 1e8 },
-];
-let btcAPIIndex = 0;
+for (let i = 0; i < wallets.length; i += BATCH_SIZE) {
+    const batch = wallets.slice(i, i + BATCH_SIZE);
 
-Deno.serve(async (req) => {
-    try {
-        const base44 = createClientFromRequest(req);
-        const user = await base44.auth.me();
-        if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const batchResults = await Promise.allSettled(
+        batch.map(async (wallet: any) => {
+            let balance = 0;
+            let symbol = '';
 
-        const wallets = await base44.entities.ImportedWallet.filter({
-            user_id: user.id,
-            is_active: true
-        });
+            if (wallet.blockchain in ALCHEMY_ENDPOINTS) {
+                balance = await getAlchemyBalance(wallet.blockchain, wallet.address);
+                symbol = wallet.blockchain === 'polygon' ? 'MATIC' :
+                         wallet.blockchain === 'avalanche' ? 'AVAX' : 'ETH';
 
-        if (wallets.length === 0) {
-            return Response.json({ total_balance_usd: 0, wallets: [], message: 'No wallets imported yet' });
-        }
+            } else if (wallet.blockchain === 'bsc') {
+                const res = await fetch(
+                    `https://api.bscscan.com/api?module=account&action=balance&address=${wallet.address}&tag=latest`,
+                    { signal: AbortSignal.timeout(6000) }
+                );
+                const data = await res.json();
+                if (data.status === '1') balance = Number(BigInt(data.result)) / 1e18;
+                symbol = 'BNB';
 
-        // Fetch live prices
-        const livePrices: Record<string, number> = { ...FALLBACK_PRICES };
-        try {
-            const ids = Object.values(COINGECKO_IDS).join(',');
-            const priceRes = await fetch(
-                `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`,
-                { signal: AbortSignal.timeout(6000) }
-            );
-            if (priceRes.ok) {
-                const priceData = await priceRes.json();
-                for (const [symbol, geckoId] of Object.entries(COINGECKO_IDS)) {
-                    const p = priceData[geckoId]?.usd;
-                    if (p && p > 0) livePrices[symbol] = p;
-                }
-            }
-        } catch (err) {
-            console.log(`CoinGecko failed, using fallbacks: ${err.message}`);
-        }
+            } else if (wallet.blockchain === 'solana') {
+                const res = await fetch('https://api.mainnet-beta.solana.com', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0', id: 1,
+                        method: 'getBalance',
+                        params: [wallet.address]
+                    }),
+                    signal: AbortSignal.timeout(6000)
+                });
+                const data = await res.json();
+                if (data.result?.value !== undefined) balance = data.result.value / 1e9;
+                symbol = 'SOL';
 
-        const walletBalances = [];
-
-        for (let i = 0; i < wallets.length; i++) {
-            const wallet = wallets[i];
-
-            // Rate limiting delay between each wallet
-            if (i > 0) await sleep(300);
-
-            try {
-                let balance = 0;
-                let symbol = '';
-
-                if (wallet.blockchain in ALCHEMY_ENDPOINTS) {
-                    // Use Alchemy for EVM chains
-                    balance = await getAlchemyBalance(wallet.blockchain, wallet.address);
-                    symbol = wallet.blockchain === 'polygon' ? 'MATIC' :
-                             wallet.blockchain === 'avalanche' ? 'AVAX' : 'ETH';
-
-                } else if (wallet.blockchain === 'bsc') {
-                    // BSC not on Alchemy free tier - use bscscan
-                    const res = await fetch(
-                        `https://api.bscscan.com/api?module=account&action=balance&address=${wallet.address}&tag=latest`,
-                        { signal: AbortSignal.timeout(6000) }
-                    );
-                    const data = await res.json();
-                    if (data.status === '1') balance = Number(BigInt(data.result)) / 1e18;
-                    symbol = 'BNB';
-
-                } else if (wallet.blockchain === 'solana') {
-                    const res = await fetch('https://api.mainnet-beta.solana.com', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            jsonrpc: '2.0', id: 1,
-                            method: 'getBalance',
-                            params: [wallet.address]
-                        }),
-                        signal: AbortSignal.timeout(6000)
-                    });
-                    const data = await res.json();
-                    if (data.result?.value !== undefined) balance = data.result.value / 1e9;
-                    symbol = 'SOL';
-
-                } else if (wallet.blockchain === 'bitcoin') {
-                    let apiWorked = false;
-                    for (let attempt = 0; attempt < btcAPIs.length && !apiWorked; attempt++) {
-                        const api = btcAPIs[btcAPIIndex];
-                        btcAPIIndex = (btcAPIIndex + 1) % btcAPIs.length;
-                        try {
-                            const res = await fetch(api.url(wallet.address), { signal: AbortSignal.timeout(5000) });
-                            if (res.ok) {
-                                const data = await res.json();
-                                balance = api.parse(data);
-                                apiWorked = true;
-                            }
-                        } catch (err) {
-                            console.log(`BTC API ${api.name} failed: ${err.message}`);
+            } else if (wallet.blockchain === 'bitcoin') {
+                let apiWorked = false;
+                for (let attempt = 0; attempt < btcAPIs.length && !apiWorked; attempt++) {
+                    const api = btcAPIs[btcAPIIndex];
+                    btcAPIIndex = (btcAPIIndex + 1) % btcAPIs.length;
+                    try {
+                        const res = await fetch(api.url(wallet.address), { signal: AbortSignal.timeout(5000) });
+                        if (res.ok) {
+                            const data = await res.json();
+                            balance = api.parse(data);
+                            apiWorked = true;
                         }
-                        // Extra delay between BTC API attempts
-                        await sleep(500);
+                    } catch (err: any) {
+                        console.log(`BTC API ${api.name} failed: ${err.message}`);
                     }
-                    if (!apiWorked) balance = wallet.cached_balance || 0;
-                    symbol = 'BTC';
-
-                } else if (wallet.blockchain === 'tron') {
-                    const res = await fetch(`https://apilist.tronscan.org/api/account?address=${wallet.address}`, { signal: AbortSignal.timeout(6000) });
-                    const data = await res.json();
-                    if (data.balance !== undefined) balance = data.balance / 1e6;
-                    symbol = 'TRX';
+                    await sleep(300);
                 }
+                if (!apiWorked) balance = wallet.cached_balance || 0;
+                symbol = 'BTC';
 
-                const price = livePrices[symbol] ?? 0;
-                const usd_value = balance * price;
+            } else if (wallet.blockchain === 'tron') {
+                const res = await fetch(`https://apilist.tronscan.org/api/account?address=${wallet.address}`, { signal: AbortSignal.timeout(6000) });
+                const data = await res.json();
+                if (data.balance !== undefined) balance = data.balance / 1e6;
+                symbol = 'TRX';
+            }
 
-                if (balance > 0) {
-                    await base44.asServiceRole.entities.ImportedWallet.update(wallet.id, {
-                        cached_balance: balance,
-                        last_balance_check: new Date().toISOString()
-                    });
-                }
+            const price = livePrices[symbol] ?? 0;
+            const usd_value = balance * price;
 
-                walletBalances.push({
-                    id: wallet.id,
-                    address: wallet.address,
-                    blockchain: wallet.blockchain,
-                    label: wallet.label,
-                    balance,
-                    price,
-                    symbol: symbol || wallet.blockchain.toUpperCase(),
-                    usd_value,
-                });
-
-            } catch (error) {
-                console.error(`Error checking wallet ${wallet.address}:`, error);
-                const symbol = wallet.blockchain.toUpperCase();
-                walletBalances.push({
-                    id: wallet.id,
-                    address: wallet.address,
-                    blockchain: wallet.blockchain,
-                    label: wallet.label,
-                    balance: wallet.cached_balance || 0,
-                    price: livePrices[symbol] ?? 0,
-                    symbol,
-                    usd_value: (wallet.cached_balance || 0) * (livePrices[symbol] ?? 0),
+            if (balance > 0) {
+                await base44.asServiceRole.entities.ImportedWallet.update(wallet.id, {
+                    cached_balance: balance,
+                    last_balance_check: new Date().toISOString()
                 });
             }
+
+            return {
+                id: wallet.id,
+                address: wallet.address,
+                blockchain: wallet.blockchain,
+                label: wallet.label,
+                balance,
+                price,
+                symbol: symbol || wallet.blockchain.toUpperCase(),
+                usd_value,
+            };
+        })
+    );
+
+    for (const result of batchResults) {
+        if (result.status === 'fulfilled') {
+            walletBalances.push(result.value);
+        } else {
+            console.error('Wallet check failed:', result.reason);
         }
+    }
+
+    // 500ms between batches to avoid rate limits
+    if (i + BATCH_SIZE < wallets.length) await sleep(500);
+}
 
         const totalBalanceUsd = walletBalances.reduce((sum, w) => sum + w.usd_value, 0);
 

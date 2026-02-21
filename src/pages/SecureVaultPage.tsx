@@ -1,3 +1,4 @@
+import React from "react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Wallet } from "@/entities/Wallet";
 import { SecureVault } from "@/entities/SecureVault";
