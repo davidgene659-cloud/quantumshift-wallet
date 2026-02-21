@@ -61,7 +61,6 @@ import Marketing from './pages/Marketing';
 import NFTs from './pages/NFTs';
 import Poker from './pages/Poker';
 import Portfolio from './pages/Portfolio';
-import Portfolio from './pages/Portfolio';
 import Privacy from './pages/Privacy';
 import Receive from './pages/Receive';
 import SecureVaultPage from './pages/SecureVaultPage';
