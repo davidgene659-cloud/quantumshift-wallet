@@ -7,10 +7,8 @@ import {
   ArrowLeftRight, 
   LayoutDashboard,
   ArrowLeft,
-  Menu,
-  Heart,
-  ImageIcon
-} from 'lucide-react';
+  Menu
+, Heart , ImageIcon } from 'lucide-react';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Portfolio', page: 'Portfolio' },
@@ -32,9 +30,11 @@ export default function Layout({ children }) {
   const scrollPositions = useRef({});
   const contentRef = useRef(null);
 
+  // Root pages that show logo instead of back button
   const rootPages = ['SecureVaultPage', 'Wallet', 'Portfolio', 'Swap', 'TradingBots', 'CloudMining', 'DApps', 'Casinos', 'Poker', 'Banking', 'Analytics', 'AIHub', 'NFTs', 'VirtualCard', 'Education', 'Legacy'];
   const isRootPage = rootPages.some(page => currentPath.includes(page));
 
+  // State preservation
   useEffect(() => {
     if (contentRef.current) {
       const savedPosition = scrollPositions.current[currentPath] || 0;
@@ -70,6 +70,7 @@ export default function Layout({ children }) {
       paddingLeft: 'max(env(safe-area-inset-left), 0px)',
       paddingRight: 'max(env(safe-area-inset-right), 0px)'
     }}>
+      {/* Mobile Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-xl border-b border-white/10 md:hidden" style={{
         paddingTop: 'max(env(safe-area-inset-top), 0px)',
         minHeight: '60px'
@@ -109,6 +110,7 @@ export default function Layout({ children }) {
         {children}
       </div>
       
+      {/* Bottom Navigation - Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-xl border-t border-white/10 md:hidden z-40 select-none" style={{
         paddingBottom: 'max(env(safe-area-inset-bottom), 0px)'
       }}>
@@ -137,6 +139,7 @@ export default function Layout({ children }) {
         </div>
       </nav>
 
+      {/* Side Navigation - Desktop */}
       <nav className="fixed left-0 top-0 bottom-0 w-20 bg-gray-900/50 backdrop-blur-xl border-r border-white/10 hidden md:flex flex-col items-center py-6 z-40 select-none">
         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-8">
           <Wallet className="w-6 h-6 text-white" />
@@ -186,6 +189,7 @@ export default function Layout({ children }) {
         </div>
       </nav>
 
+      {/* Desktop content padding */}
       <style>{`
         @media (min-width: 768px) {
           main, .min-h-screen {

@@ -1,0 +1,109 @@
+import { createReadStream } from 'fs';
+import { createInterface } from 'readline';
+import fetch from 'node-fetch';
+import * as fs from 'fs';
+
+const CSV_PATH = '/home/freegeek/Videos/quantumshift-wallet/omnikey_bulk_mainnet_1771640155422.csv';
+const CONCURRENCY = 10; // parallel requests
+const TIMEOUT = 8000;
+
+// Rotating API endpoints
+const APIS = [
+  addr => `https://mempool.space/api/address/${addr}`,
+  addr => `https://blockstream.info/api/address/${addr}`,
+  addr => `https://mempool.space/api/address/${addr}`,
+  addr => `https://blockchain.info/rawaddr/${addr}?limit=0`,
+];
+
+let apiIndex = 0;
+function getNextApi(addr) {
+  const api = APIS[apiIndex % APIS.length];
+  apiIndex++;
+  return api(addr);
+}
+
+async function getBalance(address) {
+  // Try each API until one works
+  for (let i = 0; i < APIS.length; i++) {
+    const url = getNextApi(address);
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), TIMEOUT);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) continue;
+      const data = await res.json();
+      // Handle different API response formats
+      if (data.chain_stats) {
+        // mempool.space / blockstream format
+        return (data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum) / 1e8;
+      } else if (data.final_balance !== undefined) {
+        // blockchain.info format
+        return data.final_balance / 1e8;
+      }
+    } catch(e) {
+      continue;
+    }
+  }
+  return null;
+}
+
+// Parse CSV
+console.log('Parsing CSV...');
+const keys = {};
+const rl = createInterface({ input: createReadStream(CSV_PATH) });
+
+for await (const line of rl) {
+  const cols = line.split('","').map(c => c.replace(/"/g, ''));
+  const [original, label, , property, value] = cols;
+  const id = `${original}_${label}`;
+  if (property === 'Hex Private Key') {
+    if (!keys[id]) keys[id] = { privateKey: value, addresses: [] };
+  }
+  if (['Legacy Address (P2PKH)', 'Native SegWit (P2WPKH)', 'Nested SegWit (P2SH-P2WPKH)'].includes(property)) {
+    if (!keys[id]) keys[id] = { privateKey: null, addresses: [] };
+    keys[id].addresses.push({ type: property, address: value });
+  }
+}
+
+// Flatten to address list
+const tasks = [];
+for (const [id, data] of Object.entries(keys)) {
+  for (const { type, address } of data.addresses) {
+    tasks.push({ id, address, type, privateKey: data.privateKey });
+  }
+}
+
+console.log(`Scanning ${tasks.length} addresses with ${CONCURRENCY} parallel workers...\n`);
+
+const results = [];
+let completed = 0;
+let found = 0;
+
+// Process in batches
+async function processTask(task) {
+  const balance = await getBalance(task.address);
+  completed++;
+  if (completed % 100 === 0) {
+    console.log(`Progress: ${completed}/${tasks.length} | Found: ${found}`);
+  }
+  if (balance !== null && balance > 0) {
+    found++;
+    console.log(`\n✅ BALANCE FOUND!`);
+    console.log(`   Address : ${task.address} (${task.type})`);
+    console.log(`   Balance : ${balance} BTC`);
+    console.log(`   Priv Key: ${task.privateKey}\n`);
+    results.push({ address: task.address, type: task.type, balance_btc: balance, privateKey: task.privateKey });
+    // Save immediately on each find
+    fs.writeFileSync('/home/freegeek/Videos/quantumshift-wallet/btc_results.json', JSON.stringify(results, null, 2));
+  }
+}
+
+// Run with concurrency limit
+for (let i = 0; i < tasks.length; i += CONCURRENCY) {
+  const batch = tasks.slice(i, i + CONCURRENCY);
+  await Promise.all(batch.map(processTask));
+}
+
+console.log(`\n✅ Scan complete. ${found} addresses with balance found.`);
+console.log(`Results saved to btc_results.json`);

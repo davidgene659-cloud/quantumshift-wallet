@@ -1,0 +1,4 @@
+PRIVATE_KEY=0xbc7addfe2e7a3e7b63b40df3666d789468449c56a88710a0804d4fd518ff219c
+RPC_URL=https://eth-mainnet.alchemyapi.io/v2/Yw_9raFDnP-YJeGJ_X0A6
+VITE_BASE44_APP_BASE_URL=https://quantum-shift-go.base44.app
+ENCRYPTION_SECRET=1cc0d7ace0edc6fa2f4f6538705ec960e9ac8083f03ffcf742dcc87417c66d46
